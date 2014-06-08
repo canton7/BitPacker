@@ -13,45 +13,64 @@ namespace BitPacker
     internal class BitPackerExpressionBuilder
     {
         private Expression writer;
-        private static readonly HashSet<Type> primitiveTypes = new HashSet<Type>()
-        {
-            typeof(byte), typeof(sbyte), typeof(char), typeof(double), typeof(decimal), typeof(short),
-            typeof(ushort), typeof(int), typeof(uint), typeof(long), typeof(ulong), typeof(float)
-        };
 
         public BitPackerExpressionBuilder(Expression writer)
         {
             this.writer = writer;
         }
 
-        private IEnumerable<PropertyDetails> DiscoverProperties(Type objectType)
+        private IEnumerable<PropertyDetails> DiscoverProperties(Type objectType, Endianness defaultEndianness)
         {
             var properties = from property in objectType.GetProperties(BindingFlags.Public | BindingFlags.Instance)
                              let attribute = property.GetCustomAttribute<BitPackerMemberAttribute>(false)
                              where attribute != null
                              orderby attribute.Order
-                             select new PropertyDetails(property, attribute);
+                             select new PropertyDetails(objectType, property, attribute, defaultEndianness);
             return properties;
         }
 
-        private Expression SerializeProperty(Expression subject, PropertyDetails property, Endianness defaultEndianness)
+        private Expression HandleVariableLengthArrays(Expression subject, IEnumerable<PropertyDetails> propertyDetails)
         {
-            Expression member = Expression.MakeMemberAccess(subject, property.PropertyInfo);
-            return this.SerializeValue(member, property.PropertyType, property.Attribute.NullableEndianness ?? defaultEndianness);
+            // For each property which is a VLA, ynthesize an expression to assign said length field
+            // When serializing, we can handle arrays which have neither Length nor LengthField properties - we just serialize that number of elements
+
+            var blockMembers = propertyDetails.Where(x => x.IsEnumable && x.LengthProperty != null).Select(property =>
+            {
+                return Expression.Assign(
+                    Expression.MakeMemberAccess(subject, property.LengthProperty),
+                    ExpressionHelpers.LengthOfEnumerable(
+                        Expression.MakeMemberAccess(subject, property.PropertyInfo),
+                        property.ElementType
+                    )
+                );
+            });
+
+            return blockMembers.Any() ? Expression.Block(blockMembers) : null;
         }
 
-        private Expression SerializeValue(Expression value, Type type, Endianness endianness)
+        private TypeDetails SerializeProperty(Expression subject, PropertyDetails property)
         {
-            if (primitiveTypes.Contains(type))
+            Expression member = Expression.MakeMemberAccess(subject, property.PropertyInfo);
+            return this.SerializeValue(member, property);
+        }
+
+        private TypeDetails SerializeValue(Expression value, PropertyDetails property)
+        {
+            if (property.IsEnumable)
+            {
+                return this.SerializeEnumerable(value, property);
+            }
+            else
+            {
+                return this.SerializeScalarValue(value, property.Type, property.Endianness);
+            }
+        }
+
+        private TypeDetails SerializeScalarValue(Expression value, Type type, Endianness endianness)
+        {
+            if (PrimitiveTypes.Types.ContainsKey(type))
             {
                 return this.SerializePrimitive(value, type, endianness);
-            }
-            
-            if (type.IsArray || typeof(IEnumerable<>).IsAssignableFrom(type))
-            {
-                var elementType = type.IsArray ? type.GetElementType() : type.GetGenericArguments()[0];
-                // TODO: Array length
-                return this.SerializeEnumerable(value, elementType, 0, endianness);
             }
 
             var attribute = type.GetCustomAttribute<BitPackerObjectAttribute>(false);
@@ -60,71 +79,95 @@ namespace BitPacker
                 return this.SerializeCustomType(value, type);
             }
 
-            return Expression.Empty();
+            throw new Exception(String.Format("Don't know how to serialize type {0}", type.Name));
         }
 
-        public Expression SerializeCustomType(Expression value, Type type)
+        public TypeDetails SerializeCustomType(Expression value, Type type)
         {
             // If it's not marked with our attribute, we're not serializing it
             var attribute = type.GetCustomAttribute<BitPackerObjectAttribute>(false);
             if (attribute == null)
-                return Expression.Empty();
+                return null;
 
-            var blockMembers = this.DiscoverProperties(type).Select(property =>
-            {
-                return this.SerializeProperty(value, property, attribute.Endianness);
-            });
+            var properties = this.DiscoverProperties(type, attribute.Endianness);
+            var blockMembers = new List<Expression>() { this.HandleVariableLengthArrays(value, properties) };
 
-            if (!blockMembers.Any())
-                return Expression.Empty();
+            var typeDetails = this.DiscoverProperties(type, attribute.Endianness).Select(property => this.SerializeProperty(value, property));
 
-            var block = Expression.Block(blockMembers);
+            blockMembers.AddRange(typeDetails.Select(x => x.OperationExpression));
+
+            var block = Expression.Block(blockMembers.Where(x => x != null));
             var nullCheck = Expression.IfThen(Expression.NotEqual(value, Expression.Constant(null, type)), block);
 
-            return nullCheck;
+            return new TypeDetails(typeDetails.All(x => x.HasFixedSize), typeDetails.Sum(x => x.MinSize), nullCheck);
         }
 
-        private Expression SerializePrimitive(Expression value, Type type, Endianness endianness)
+        private TypeDetails SerializePrimitive(Expression value, Type type, Endianness endianness)
         {
             if (endianness != EndianUtilities.HostEndianness)
             {
                 // If EndianUtilities has a Swap method for this type, then we can convert it
                 var swapMethod = typeof(EndianUtilities).GetMethod("Swap", new[] { type });
-                // If swapMethod doesn't exist, and they're explictely stated that they want an endianness for this property, then that's an error
                 if (swapMethod != null)
                 {
                     value = Expression.Call(swapMethod, value);
                 }
             }
 
-            var method = typeof(BinaryWriter).GetMethod("Write", new[] { type });
-            Debug.Assert(method != null);
+            var info = PrimitiveTypes.Types[type];
 
-            return Expression.Call(this.writer, method, value);
+            return new TypeDetails(true, info.Size, info.SerializeExpression(this.writer, value));
         }
 
-        private Expression SerializeEnumerable(Expression enumerable, Type elementType, int length, Endianness endianness)
+        private TypeDetails SerializeEnumerable(Expression enumerable, PropertyDetails property)
         {
             var blockMembers = new List<Expression>();
 
-            var lengthVar = Expression.Variable(typeof(int), "length");
-            var enumerableLength = ExpressionHelpers.LengthOfEnumerable(enumerable, elementType);
-            blockMembers.Add(Expression.Assign(lengthVar, enumerableLength));
+            ParameterExpression lengthVar = null;
+            bool hasFixedLength = property.EnumerableLength > 0;
 
             // If they specified an explicit length, throw if the actual enumerable is longer
-            if (length > 0)
+            if (hasFixedLength)
             {
-                var test = Expression.GreaterThan(lengthVar, Expression.Constant(length));
+                lengthVar = Expression.Variable(typeof(int), "length");
+                var enumerableLength = ExpressionHelpers.LengthOfEnumerable(enumerable, property.ElementType);
+                blockMembers.Add(Expression.Assign(lengthVar, enumerableLength));
+
+                var test = Expression.GreaterThan(lengthVar, Expression.Constant(property.EnumerableLength));
                 var throwExpr = Expression.Throw(Expression.Constant(new Exception("You specified an explicit length for an array member, but the actual member is longer")));
                 blockMembers.Add(Expression.IfThen(test, throwExpr));
             }
 
-            var loopVar = Expression.Variable(elementType, "loopVariable");
-            blockMembers.Add(ExpressionHelpers.ForEach(enumerable, elementType, loopVar, this.SerializeValue(loopVar, elementType, endianness)));
+            // If they specified a length field, we've already assigned it (yay how organised as we?!)
 
-            var block = Expression.Block(new[] { lengthVar }, blockMembers);
+            var loopVar = Expression.Variable(property.ElementType, "loopVariable");
+            var typeDetails =  this.SerializeScalarValue(loopVar, property.ElementType, property.Endianness);
+            blockMembers.Add(ExpressionHelpers.ForEach(enumerable, property.ElementType, loopVar, typeDetails.OperationExpression));
 
-            return block;
+            // If it's a fixed-length array, we might need to pad it out
+            // for (int i = lengthVar; i < property.EnumerableLength; i++)
+            // {
+            //     writer.Write(new Type()); // Or whatever the writing expression happens to be
+            // }
+            if (hasFixedLength)
+            {
+                var initAndSerialize = this.SerializeScalarValue(Expression.New(property.ElementType), property.ElementType, property.Endianness).OperationExpression;
+
+                var i = Expression.Variable(typeof(int), "i");
+                var padFor = ExpressionHelpers.For(
+                    i,
+                    lengthVar,
+                    Expression.LessThan(i, Expression.Constant(property.EnumerableLength)),
+                    Expression.PostIncrementAssign(i),
+                    initAndSerialize
+                );
+                blockMembers.Add(padFor);
+            }
+
+            var blockVars = lengthVar == null ? new ParameterExpression[0] : new[] { lengthVar };
+            var block = Expression.Block(blockVars, blockMembers);
+
+            return new TypeDetails(hasFixedLength && typeDetails.HasFixedSize, hasFixedLength ? property.EnumerableLength * typeDetails.MinSize : 0, block);
         }
     }
 }

@@ -14,28 +14,37 @@ namespace Sandbox
         {
             var serializer = new BitPackerSerializer(typeof(TestClass));
 
-            using (var ms = new MemoryStream())
+            var buffer = serializer.Serialize(new TestClass()
             {
-                using (var bw = new BinaryWriter(ms))
+                Test = true,
+                ArrayField = new[]
                 {
-                    serializer.Serialize(bw, new TestClass()
+                    new TestSubClass()
                     {
-                        IntField = new int[]{1, 2, 3},
-                    });
-                    var buffer = ms.GetBuffer();
+                        FloatField = 1.0f,
+                        IntField = 3,
+                    },
+                    new TestSubClass()
+                    {
+                        FloatField = 2.0f,
+                        IntField = 4,
+                    }
                 }
-            }
+            });
         }
     }
 
-    [BitPackerObject(Endianness=Endianness.BigEndian)]
+    [BitPackerObject(Endianness=Endianness.LittleEndian)]
     public class TestClass
     {
-        [BitPackerMember(Length=1)]
-        public int[] IntField { get; set; }
-
         [BitPackerMember]
-        public TestSubClass SubClass { get; set; }
+        public bool Test { get; set; }
+
+        [BitPackerMember(Length=3)]
+        public TestSubClass[] ArrayField { get; set; }
+
+        //[BitPackerMember]
+        //public TestSubClass SubClass { get; set; }
     }
 
     [BitPackerObject]
@@ -43,5 +52,8 @@ namespace Sandbox
     {
         [BitPackerMember]
         public float FloatField { get; set; }
+
+        [BitPackerMember]
+        public int IntField { get; set; }
     }
 }

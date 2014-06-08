@@ -45,9 +45,12 @@
     <Compile Include="Endianness.cs" />
     <Compile Include="EndianUtilities.cs" />
     <Compile Include="ExpressionHelpers.cs" />
+    <Compile Include="PrimitiveTypeInfo.cs" />
+    <Compile Include="PrimitiveTypes.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="PropertyDetails.cs" />
     <Compile Include="BitPackerMemberAttribute.cs" />
+    <Compile Include="TypeDetails.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
