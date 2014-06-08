@@ -10,14 +10,14 @@ using System.Threading.Tasks;
 
 namespace BitPacker
 {
-    public class BitPackerSerializer
+    public abstract class BitPackerSerializerBase
     {
-        private Action<BinaryWriter, object> serializer;
+        protected Action<BinaryWriter, object> serializer;
 
         public bool HasFixedSize { get; private set; }
         public int MinSize { get; private set; }
 
-        public BitPackerSerializer(Type subjectType)
+        public BitPackerSerializerBase(Type subjectType)
         {
             var writer = Expression.Parameter(typeof(BinaryWriter), "writer");
             var subject = Expression.Parameter(typeof(object), "subject");
@@ -35,12 +35,12 @@ namespace BitPacker
             this.serializer = Expression.Lambda<Action<BinaryWriter, object>>(block, writer, subject).Compile();
         }
 
-        public void Serialize(BinaryWriter writer, object subject)
+        protected void SerializeInternal(BinaryWriter writer, object subject)
         {
             this.serializer(writer, subject);
         }
 
-        public byte[] Serialize(object subject)
+        protected byte[] SerializeInternal(object subject)
         {
             using (var ms = new MemoryStream())
             using (var writer = new BinaryWriter(ms))
@@ -48,6 +48,40 @@ namespace BitPacker
                 this.serializer(writer, subject);
                 return ms.GetBuffer().Take((int)ms.Position).ToArray();
             }
+        }
+    }
+
+    public class BitPackerSerializer : BitPackerSerializerBase
+    {
+        public BitPackerSerializer(Type subjectType)
+            : base(subjectType)
+        { }
+
+        public void Serialize(BinaryWriter writer, object subject)
+        {
+            this.SerializeInternal(writer, subject);
+        }
+
+        public byte[] Serialize(object subject)
+        {
+            return this.SerializeInternal(subject);
+        }
+    }
+
+    public class BitPackerSerializer<T> : BitPackerSerializerBase
+    {
+        public BitPackerSerializer()
+            : base(typeof(T))
+        { }
+
+        public void Serialize(BinaryWriter writer, T subject)
+        {
+            this.SerializeInternal(writer, subject);
+        }
+
+        public byte[] Serialize(T subject)
+        {
+            return this.SerializeInternal(subject);
         }
     }
 }

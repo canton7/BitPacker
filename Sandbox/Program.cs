@@ -12,7 +12,7 @@ namespace Sandbox
     {
         static void Main(string[] args)
         {
-            var serializer = new BitPackerSerializer(typeof(TestClass));
+            var serializer = new BitPackerSerializer(typeof(TestSubClass));
 
             var buffer = serializer.Serialize(new TestClass()
             {
