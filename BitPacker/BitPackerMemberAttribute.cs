@@ -7,12 +7,13 @@ using System.Threading.Tasks;
 
 namespace BitPacker
 {
-    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct | AttributeTargets.Property, Inherited = false, AllowMultiple = false)]
+    [AttributeUsage(AttributeTargets.Property, Inherited = false, AllowMultiple = false)]
     public sealed class BitPackerMemberAttribute : Attribute
     {
         public int Order { get; set; }
         public int Length { get; set; }
         public string LengthField { get; set; }
+        public Type EnumType { get; set; }
 
         internal Endianness? NullableEndianness;
         public Endianness Endianness

@@ -16,32 +16,21 @@ namespace Sandbox
 
             var buffer = serializer.Serialize(new TestClass()
             {
-                Test = true,
-                ArrayField = new[]
-                {
-                    new TestSubClass()
-                    {
-                        FloatField = 1.0f,
-                        IntField = 3,
-                    },
-                    new TestSubClass()
-                    {
-                        FloatField = 2.0f,
-                        IntField = 4,
-                    }
-                }
+                Test = (Test)512,
             });
         }
     }
 
-    [BitPackerObject(Endianness=Endianness.LittleEndian)]
+    public enum Test { Foo, Bar };
+
+    [BitPackerObject]
     public class TestClass
     {
-        [BitPackerMember]
-        public bool Test { get; set; }
+        [BitPackerMember(EnumType=typeof(byte))]
+        public Test Test { get; set; }
 
-        [BitPackerMember(Length=2)]
-        public TestSubClass[] ArrayField { get; set; }
+        //[BitPackerMember(Length=2)]
+        //public TestSubClass[] ArrayField { get; set; }
 
         //[BitPackerMember]
         //public TestSubClass SubClass { get; set; }

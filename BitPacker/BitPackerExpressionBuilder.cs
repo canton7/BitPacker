@@ -62,15 +62,20 @@ namespace BitPacker
             }
             else
             {
-                return this.SerializeScalarValue(value, property.Type, property.Endianness);
+                return this.SerializeScalarValue(value, property.Type, property);
             }
         }
 
-        private TypeDetails SerializeScalarValue(Expression value, Type type, Endianness endianness)
+        private TypeDetails SerializeScalarValue(Expression value, Type type, PropertyAttributes property)
         {
             if (PrimitiveTypes.Types.ContainsKey(type))
             {
-                return this.SerializePrimitive(value, type, endianness);
+                return this.SerializePrimitive(value, type, property);
+            }
+
+            if (typeof(Enum).IsAssignableFrom(type))
+            {
+                return this.SerializeEnum(value, type, property);
             }
 
             var attribute = type.GetCustomAttribute<BitPackerObjectAttribute>(false);
@@ -89,10 +94,10 @@ namespace BitPacker
             if (attribute == null)
                 return null;
 
-            var properties = this.DiscoverProperties(type, attribute.Endianness);
+            var properties = this.DiscoverProperties(type, attribute.Endianness).ToArray();
             var blockMembers = new List<Expression>() { this.HandleVariableLengthArrays(value, properties) };
 
-            var typeDetails = this.DiscoverProperties(type, attribute.Endianness).Select(property => this.SerializeProperty(value, property));
+            var typeDetails = properties.Select(property => this.SerializeProperty(value, property)).ToArray();
 
             blockMembers.AddRange(typeDetails.Select(x => x.OperationExpression));
 
@@ -102,21 +107,40 @@ namespace BitPacker
             return new TypeDetails(typeDetails.All(x => x.HasFixedSize), typeDetails.Sum(x => x.MinSize), nullCheck);
         }
 
-        private TypeDetails SerializePrimitive(Expression value, Type type, Endianness endianness)
+        private TypeDetails SerializePrimitive(Expression value, Type type, PropertyAttributes property)
         {
-            if (endianness != EndianUtilities.HostEndianness)
-            {
-                // If EndianUtilities has a Swap method for this type, then we can convert it
-                var swapMethod = typeof(EndianUtilities).GetMethod("Swap", new[] { type });
-                if (swapMethod != null)
-                {
-                    value = Expression.Call(swapMethod, value);
-                }
-            }
+            // Even through EndiannessUtilities has now Swap(byte) overload, we get an AmbiguousMatchException
+            // when we try and find such a method (maybe the byte is being coerced into an int or something?).
+            // Therefore, handle this...
 
             var info = PrimitiveTypes.Types[type];
 
+            if (property.Endianness != EndianUtilities.HostEndianness && info.Size > 1)
+            {
+                // If EndianUtilities has a Swap method for this type, then we can convert it
+                var swapMethod = typeof(EndianUtilities).GetMethod("Swap", new[] { type } );
+                if (swapMethod != null)
+                    value = Expression.Call(swapMethod, value);
+            }
+
             return new TypeDetails(true, info.Size, info.SerializeExpression(this.writer, value));
+        }
+
+        private TypeDetails SerializeEnum(Expression value, Type type, PropertyAttributes property)
+        {
+            Type intType = property.EnumType == null ? typeof(int) : property.EnumType;
+            // Check that no value in the enum exceeds the given size
+            var length = PrimitiveTypes.Types[intType].Size;
+            var maxVal = Math.Pow(2, length * 8);
+            // Can't use linq, as it's an non-generic IEnumerable of value types
+            foreach (var enumVal in Enum.GetValues(type))
+            {
+                if ((int)enumVal > maxVal)
+                    throw new Exception(String.Format("Enum type {0} has a size of {1} bytes, but has a member which is greater than this", type, length));
+            }
+                
+
+            return this.SerializePrimitive(Expression.ConvertChecked(value, intType), intType, property);
         }
 
         private TypeDetails SerializeEnumerable(Expression enumerable, PropertyDetails property)
@@ -144,7 +168,7 @@ namespace BitPacker
             // If they specified a length field, we've already assigned it (yay how organised as we?!)
 
             var loopVar = Expression.Variable(property.ElementType, "loopVariable");
-            var typeDetails =  this.SerializeScalarValue(loopVar, property.ElementType, property.Endianness);
+            var typeDetails =  this.SerializeScalarValue(loopVar, property.ElementType, property);
             blockMembers.Add(ExpressionHelpers.ForEach(enumerable, property.ElementType, loopVar, typeDetails.OperationExpression));
 
             // If it's a fixed-length array, we might need to pad it out
@@ -162,7 +186,7 @@ namespace BitPacker
                 blockVars.Add(emptyInstanceVar);
                 var emptyInstanceAssignment = Expression.Assign(emptyInstanceVar, Expression.New(property.ElementType));
 
-                var initAndSerialize = this.SerializeScalarValue(emptyInstanceVar, property.ElementType, property.Endianness).OperationExpression;
+                var initAndSerialize = this.SerializeScalarValue(emptyInstanceVar, property.ElementType, property).OperationExpression;
                 var i = Expression.Variable(typeof(int), "i");
 
                 var padding = Expression.IfThen(
