@@ -148,31 +148,38 @@ namespace BitPacker
             blockMembers.Add(ExpressionHelpers.ForEach(enumerable, property.ElementType, loopVar, typeDetails.OperationExpression));
 
             // If it's a fixed-length array, we might need to pad it out
-            // for (int i = lengthVar; i < property.EnumerableLength; i++)
+            // if (lengthVar < property.EnumerableLength)
             // {
-            //     writer.Write(new Type()); // Or whatever the writing expression happens to be
+            //     var emptyInstance = new SomeType(); // Or whatever
+            //     for (int i = lengthVar; i < property.EnumerableLength; i++)
+            //     {
+            //         writer.Write(emptyInstance); // Or whatever the writing expression happens to be
+            //     }
             // }
             if (hasFixedLength)
             {
-                var emptyInstanceNew = Expression.New(property.ElementType);
                 var emptyInstanceVar = Expression.Variable(property.ElementType, "emptyInstance");
                 blockVars.Add(emptyInstanceVar);
-
-                var emptyInstanceAssignment = Expression.Assign(emptyInstanceVar, emptyInstanceNew);
-                blockMembers.Add(emptyInstanceNew);
-                blockMembers.Add(emptyInstanceAssignment);
+                var emptyInstanceAssignment = Expression.Assign(emptyInstanceVar, Expression.New(property.ElementType));
 
                 var initAndSerialize = this.SerializeScalarValue(emptyInstanceVar, property.ElementType, property.Endianness).OperationExpression;
-
                 var i = Expression.Variable(typeof(int), "i");
-                var padFor = ExpressionHelpers.For(
-                    i,
-                    lengthVar,
-                    Expression.LessThan(i, Expression.Constant(property.EnumerableLength)),
-                    Expression.PostIncrementAssign(i),
-                    initAndSerialize
+
+                var padding = Expression.IfThen(
+                    Expression.LessThan(lengthVar, Expression.Constant(property.EnumerableLength)),
+                    Expression.Block(new[] { emptyInstanceVar },
+                        emptyInstanceAssignment,
+                        ExpressionHelpers.For(
+                            i,
+                            lengthVar,
+                            Expression.LessThan(i, Expression.Constant(property.EnumerableLength)),
+                            Expression.PostIncrementAssign(i),
+                            initAndSerialize
+                        )
+                    )
                 );
-                blockMembers.Add(padFor);
+
+                blockMembers.Add(padding);
             }
 
             var block = Expression.Block(blockVars, blockMembers);

@@ -40,7 +40,7 @@ namespace Sandbox
         [BitPackerMember]
         public bool Test { get; set; }
 
-        [BitPackerMember(Length=3)]
+        [BitPackerMember(Length=2)]
         public TestSubClass[] ArrayField { get; set; }
 
         //[BitPackerMember]
