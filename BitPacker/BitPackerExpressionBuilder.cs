@@ -122,6 +122,7 @@ namespace BitPacker
         private TypeDetails SerializeEnumerable(Expression enumerable, PropertyDetails property)
         {
             var blockMembers = new List<Expression>();
+            var blockVars = new List<ParameterExpression>();
 
             ParameterExpression lengthVar = null;
             bool hasFixedLength = property.EnumerableLength > 0;
@@ -130,6 +131,8 @@ namespace BitPacker
             if (hasFixedLength)
             {
                 lengthVar = Expression.Variable(typeof(int), "length");
+                blockVars.Add(lengthVar);
+
                 var enumerableLength = ExpressionHelpers.LengthOfEnumerable(enumerable, property.ElementType);
                 blockMembers.Add(Expression.Assign(lengthVar, enumerableLength));
 
@@ -151,7 +154,15 @@ namespace BitPacker
             // }
             if (hasFixedLength)
             {
-                var initAndSerialize = this.SerializeScalarValue(Expression.New(property.ElementType), property.ElementType, property.Endianness).OperationExpression;
+                var emptyInstanceNew = Expression.New(property.ElementType);
+                var emptyInstanceVar = Expression.Variable(property.ElementType, "emptyInstance");
+                blockVars.Add(emptyInstanceVar);
+
+                var emptyInstanceAssignment = Expression.Assign(emptyInstanceVar, emptyInstanceNew);
+                blockMembers.Add(emptyInstanceNew);
+                blockMembers.Add(emptyInstanceAssignment);
+
+                var initAndSerialize = this.SerializeScalarValue(emptyInstanceVar, property.ElementType, property.Endianness).OperationExpression;
 
                 var i = Expression.Variable(typeof(int), "i");
                 var padFor = ExpressionHelpers.For(
@@ -164,7 +175,6 @@ namespace BitPacker
                 blockMembers.Add(padFor);
             }
 
-            var blockVars = lengthVar == null ? new ParameterExpression[0] : new[] { lengthVar };
             var block = Expression.Block(blockVars, blockMembers);
 
             return new TypeDetails(hasFixedLength && typeDetails.HasFixedSize, hasFixedLength ? property.EnumerableLength * typeDetails.MinSize : 0, block);

@@ -55,5 +55,8 @@ namespace Sandbox
 
         [BitPackerMember]
         public int IntField { get; set; }
+
+        [BitPackerMember]
+        public int AnotherIntField { get; set; }
     }
 }
