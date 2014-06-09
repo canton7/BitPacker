@@ -11,8 +11,7 @@ using System.Threading.Tasks;
 
 namespace BitPacker
 {
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public abstract class BitPackerSerializerBase
+    public class BitPackerSerializer
     {
         protected internal Action<BinaryWriter, object> serializer;
         protected internal Type subjectType;
@@ -20,7 +19,7 @@ namespace BitPacker
         public bool HasFixedSize { get; private set; }
         public int MinSize { get; private set; }
 
-        internal BitPackerSerializerBase(Type subjectType)
+        public BitPackerSerializer(Type subjectType)
         {
             this.subjectType = subjectType;
 
@@ -40,28 +39,6 @@ namespace BitPacker
             this.serializer = Expression.Lambda<Action<BinaryWriter, object>>(block, writer, subject).Compile();
         }
 
-        protected internal void SerializeInternal(BinaryWriter writer, object subject)
-        {
-            this.serializer(writer, subject);
-        }
-
-        protected internal byte[] SerializeInternal(object subject)
-        {
-            using (var ms = new MemoryStream())
-            using (var writer = new BinaryWriter(ms))
-            {
-                this.serializer(writer, subject);
-                return ms.GetBuffer().Take((int)ms.Position).ToArray();
-            }
-        }
-    }
-
-    public class BitPackerSerializer : BitPackerSerializerBase
-    {
-        public BitPackerSerializer(Type subjectType)
-            : base(subjectType)
-        { }
-
         private void CheckType(object subject)
         {
             if (!this.subjectType.IsAssignableFrom(subject.GetType()))
@@ -71,30 +48,56 @@ namespace BitPacker
         public void Serialize(BinaryWriter writer, object subject)
         {
             this.CheckType(subject);
-            this.SerializeInternal(writer, subject);
+            this.serializer(writer, subject);
         }
 
         public byte[] Serialize(object subject)
         {
             this.CheckType(subject);
-            return this.SerializeInternal(subject);
+            using (var ms = new MemoryStream())
+            using (var writer = new BinaryWriter(ms))
+            {
+                this.serializer(writer, subject);
+                return ms.GetBuffer().Take((int)ms.Position).ToArray();
+            }
         }
     }
 
-    public class BitPackerSerializer<T> : BitPackerSerializerBase
+    public class BitPackerSerializer<T>
     {
+        public bool HasFixedSize { get; private set; }
+        public int MinSize { get; private set; }
+
+        private Action<BinaryWriter, T> serializer;
+
         public BitPackerSerializer()
-            : base(typeof(T))
-        { }
+	    {
+            var subjectType = typeof(T);
+            var writer = Expression.Parameter(typeof(BinaryWriter), "writer");
+            var subject = Expression.Parameter(subjectType, "subject");
+
+            var builder = new BitPackerExpressionBuilder(writer);
+            var typeDetails = builder.SerializeCustomType(subject, subjectType);
+
+            this.HasFixedSize = typeDetails.HasFixedSize;
+            this.MinSize = typeDetails.MinSize;
+
+            this.serializer = Expression.Lambda<Action<BinaryWriter, T>>(typeDetails.OperationExpression, writer, subject).Compile();
+	    }
 
         public void Serialize(BinaryWriter writer, T subject)
         {
-            this.SerializeInternal(writer, subject);
+            this.serializer(writer, subject);
         }
 
         public byte[] Serialize(T subject)
         {
-            return this.SerializeInternal(subject);
+            using (var ms = new MemoryStream())
+            using (var writer = new BinaryWriter(ms))
+            {
+                this.serializer(writer, subject);
+                return ms.GetBuffer().Take((int)ms.Position).ToArray();
+            }
         }
     }
 }
