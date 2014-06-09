@@ -50,5 +50,20 @@ namespace BitPacker
         {
             return (long)Swap((ulong)val);
         }
+
+        public static float Swap(float val)
+        {
+            // We can't get the raw bytes ourselves without unmanaged code, and I don't want this library to be unmanaged
+            // So use BitConverter, even though it's slower
+            // TODO: Profile this against  BitConverter.ToSingle(BitConverter.GetBytes(val).Reverse().ToArray(), 0)
+            // The current implementation doesn't do an array reversal and allocate, but does have more method calls
+            return BitConverter.ToSingle(BitConverter.GetBytes(Swap(BitConverter.ToInt32(BitConverter.GetBytes(val), 0))), 0);
+        }
+
+        public static double Swap(double val)
+        {
+            // We can play a slightly better trick on this one
+            return BitConverter.Int64BitsToDouble(Swap(BitConverter.DoubleToInt64Bits(val)));
+        }
     }
 }
