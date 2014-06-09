@@ -94,17 +94,25 @@ namespace BitPacker
             if (attribute == null)
                 return null;
 
-            var properties = this.DiscoverProperties(type, attribute.Endianness).ToArray();
-            var blockMembers = new List<Expression>() { this.HandleVariableLengthArrays(value, properties) };
+            var blockMembers = new List<Expression>();
 
-            var typeDetails = properties.Select(property => this.SerializeProperty(value, property)).ToArray();
+            var valueToSerialize = Expression.Variable(type, "valueToSerialize");
+            blockMembers.Add(Expression.IfThenElse(
+                Expression.Equal(value, Expression.Constant(null, type)),
+                Expression.Assign(valueToSerialize, Expression.New(type)),
+                Expression.Assign(valueToSerialize, value)
+            ));
+
+            var properties = this.DiscoverProperties(type, attribute.Endianness).ToArray();
+            blockMembers.Add(this.HandleVariableLengthArrays(valueToSerialize, properties));
+
+            var typeDetails = properties.Select(property => this.SerializeProperty(valueToSerialize, property)).ToArray();
 
             blockMembers.AddRange(typeDetails.Select(x => x.OperationExpression));
 
-            var block = Expression.Block(blockMembers.Where(x => x != null));
-            var nullCheck = Expression.IfThen(Expression.NotEqual(value, Expression.Constant(null, type)), block);
+            var block = Expression.Block(new[] { valueToSerialize }, blockMembers.Where(x => x != null));
 
-            return new TypeDetails(typeDetails.All(x => x.HasFixedSize), typeDetails.Sum(x => x.MinSize), nullCheck);
+            return new TypeDetails(typeDetails.All(x => x.HasFixedSize), typeDetails.Sum(x => x.MinSize), block);
         }
 
         private TypeDetails SerializePrimitive(Expression value, Type type, PropertyAttributes property)
