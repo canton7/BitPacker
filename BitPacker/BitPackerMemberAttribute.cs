@@ -13,6 +13,7 @@ namespace BitPacker
         public int Order { get; set; }
         public int Length { get; set; }
         public Type EnumType { get; set; }
+        public string LengthKey { get; set; }
 
         internal Endianness? NullableEndianness;
         public Endianness Endianness

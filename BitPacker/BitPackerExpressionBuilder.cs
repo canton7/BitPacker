@@ -23,42 +23,52 @@ namespace BitPacker
 
         public TypeDetails Serialize(Expression subject)
         {
-            var objectDetails = new ObjectDetails(this.objectType, null);
+            var objectDetails = new ObjectDetails(this.objectType, subject, new BitPackerMemberAttribute());
             objectDetails.Discover();
 
-            return this.SerializeCustomType(subject, objectDetails);
+            var blockMembers = new List<Expression>();
+
+            blockMembers.Add(this.HandleVariableLengthArrays(subject, objectDetails));
+
+            var serialized = this.SerializeCustomType(subject, objectDetails);
+
+            blockMembers.Add(serialized.OperationExpression);
+
+            return new TypeDetails(serialized.HasFixedSize, serialized.MinSize, Expression.Block(blockMembers.Where(x => x != null)));
         }
 
-        private Expression HandleVariableLengthArrays(Expression subject, IEnumerable<PropertyDetails> propertyDetails)
+        private Expression HandleVariableLengthArrays(Expression subject, ObjectDetails objectDetails)
         {
-            return null;
+            // Find all properties which share the same LengthKey
+            var groups = objectDetails.RecursiveFlatProperties().GroupBy(x => x.LengthKey).ToArray();
 
-            //// For each property which is a VLA, ynthesize an expression to assign said length field
-            //// When serializing, we can handle arrays which have neither Length nor LengthField properties - we just serialize that number of elements
+            // For each, synthesize an assign to the integral field, assigning the length of the array field
+            var blockMembers = groups.Where(x => x.Key != null).Select(group =>
+            {
+                var arrays = group.Where(x => x.IsEnumerable).ToArray();
+                var keys = group.Where(x => PrimitiveTypes.IsPrimitive(x.Type) && PrimitiveTypes.Types[x.Type].IsIntegral).ToArray();
 
-            //var blockMembers = propertyDetails.Where(x => x.IsEnumable && x.LengthProperty != null).Select(property =>
-            //{
-            //    return Expression.Assign(
-            //        Expression.MakeMemberAccess(subject, property.LengthProperty),
-            //        ExpressionHelpers.LengthOfEnumerable(
-            //            Expression.MakeMemberAccess(subject, property.PropertyInfo),
-            //            property.ElementType
-            //        )
-            //    );
-            //});
+                if (arrays.Length != 1)
+                    throw new Exception(String.Format("Found zero, ormore than one arrays fields for Length Key {0}", group.Key));
 
-            //return blockMembers.Any() ? Expression.Block(blockMembers) : null;
-        }
+                if (keys.Length != 1)
+                    throw new Exception(String.Format("Found zero, or more than one integral fields for Length Key {0}", group.Key));
 
-        private TypeDetails SerializeProperty(Expression subject, PropertyDetails property)
-        {
-            Expression member = Expression.MakeMemberAccess(subject, property.PropertyInfo);
-            return this.SerializeValue(member, property.ObjectDetails);
+                return Expression.Assign(
+                    keys[0].Value,
+                    ExpressionHelpers.LengthOfEnumerable(
+                        arrays[0].Value,
+                        arrays[0].ElementType
+                    )
+                );
+            });
+
+            return blockMembers.Any() ? Expression.Block(blockMembers) : null;
         }
 
         private TypeDetails SerializeValue(Expression value, ObjectDetails objectDetails)
         {
-            if (objectDetails.IsEnumable)
+            if (objectDetails.IsEnumerable)
                 return this.SerializeEnumerable(value, objectDetails);
 
             if (PrimitiveTypes.Types.ContainsKey(objectDetails.Type))
@@ -84,16 +94,7 @@ namespace BitPacker
             var valueToSerialize = Expression.Variable(objectDetails.Type, "valueToSerialize");
             blockMembers.Add(Expression.Assign(valueToSerialize, value));
 
-            //blockMembers.Add(Expression.IfThenElse(
-            //    Expression.Equal(value, Expression.Constant(null, type)),
-            //    Expression.Assign(valueToSerialize, Expression.New(type)),
-            //    Expression.Assign(valueToSerialize, value)
-            //));
-
-            //var properties = this.DiscoverProperties(type, attribute.Endianness).ToArray();
-            //blockMembers.Add(this.HandleVariableLengthArrays(valueToSerialize, properties));
-
-            var typeDetails = objectDetails.Properties.Select(property => this.SerializeProperty(valueToSerialize, property)).ToArray();
+            var typeDetails = objectDetails.Properties.Select(property => this.SerializeValue(property.Value, property)).ToArray();
 
             blockMembers.AddRange(typeDetails.Select(x => x.OperationExpression));
 

@@ -49,7 +49,6 @@
     <Compile Include="PrimitiveTypeInfo.cs" />
     <Compile Include="PrimitiveTypes.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="PropertyDetails.cs" />
     <Compile Include="BitPackerMemberAttribute.cs" />
     <Compile Include="TypeDetails.cs" />
   </ItemGroup>
