@@ -23,10 +23,10 @@ namespace BitPacker
 
         public TypeDetails Serialize(Expression subject)
         {
-            var objectDetails = new ObjectDetails(this.objectType);
+            var objectDetails = new ObjectDetails(this.objectType, null);
             objectDetails.Discover();
 
-            return null;
+            return this.SerializeCustomType(subject, objectDetails);
         }
 
         private Expression HandleVariableLengthArrays(Expression subject, IEnumerable<PropertyDetails> propertyDetails)
@@ -53,37 +53,22 @@ namespace BitPacker
         private TypeDetails SerializeProperty(Expression subject, PropertyDetails property)
         {
             Expression member = Expression.MakeMemberAccess(subject, property.PropertyInfo);
-            return this.SerializeValue(member, property);
+            return this.SerializeValue(member, property.ObjectDetails);
         }
 
-        private TypeDetails SerializeValue(Expression value, PropertyDetails property)
+        private TypeDetails SerializeValue(Expression value, ObjectDetails objectDetails)
         {
-            if (property.IsEnumable)
-            {
-                return this.SerializeEnumerable(value, property);
-            }
-            else
-            {
-                return this.SerializeScalarValue(value, property.ObjectDetails);
-            }
-        }
+            if (objectDetails.IsEnumable)
+                return this.SerializeEnumerable(value, objectDetails);
 
-        private TypeDetails SerializeScalarValue(Expression value, ObjectDetails objectDetails)
-        {
             if (PrimitiveTypes.Types.ContainsKey(objectDetails.Type))
-            {
                 return this.SerializePrimitive(value, objectDetails);
-            }
 
-            if (typeof(Enum).IsAssignableFrom(objectDetails.Type))
-            {
+            if (objectDetails.IsEnum)
                 return this.SerializeEnum(value, objectDetails);
-            }
 
             if (objectDetails.IsCustomType)
-            {
                 return this.SerializeCustomType(value, objectDetails);
-            }
 
             throw new Exception(String.Format("Don't know how to serialize type {0}", objectDetails.Type.Name));
         }
@@ -135,30 +120,18 @@ namespace BitPacker
             return new TypeDetails(true, info.Size, info.SerializeExpression(this.writer, value));
         }
 
-        private TypeDetails SerializeEnum(Expression value, PropertyDetails property)
+        public TypeDetails SerializeEnum(Expression value, ObjectDetails objectDetails)
         {
-            Type intType = property.EnumType == null ? typeof(int) : property.EnumType;
-            // Check that no value in the enum exceeds the given size
-            var length = PrimitiveTypes.Types[intType].Size;
-            var maxVal = Math.Pow(2, length * 8);
-            // Can't use linq, as it's an non-generic IEnumerable of value types
-            foreach (var enumVal in Enum.GetValues(property.Type))
-            {
-                if ((int)enumVal > maxVal)
-                    throw new Exception(String.Format("Enum type {0} has a size of {1} bytes, but has a member which is greater than this", type, length));
-            }
-                
-
-            return this.SerializePrimitive(Expression.ConvertChecked(value, intType), intType, property);
+            return this.SerializePrimitive(Expression.Convert(value, objectDetails.EnumEquivalentType), objectDetails.EnumEquivalentObjectDetails);
         }
 
-        private TypeDetails SerializeEnumerable(Expression enumerable, PropertyDetails property)
+        private TypeDetails SerializeEnumerable(Expression enumerable, ObjectDetails objectDetails)
         {
             var blockMembers = new List<Expression>();
             var blockVars = new List<ParameterExpression>();
 
             ParameterExpression lengthVar = null;
-            bool hasFixedLength = property.EnumerableLength > 0;
+            bool hasFixedLength = objectDetails.EnumerableLength > 0;
 
             // If they specified an explicit length, throw if the actual enumerable is longer
             if (hasFixedLength)
@@ -166,19 +139,19 @@ namespace BitPacker
                 lengthVar = Expression.Variable(typeof(int), "length");
                 blockVars.Add(lengthVar);
 
-                var enumerableLength = ExpressionHelpers.LengthOfEnumerable(enumerable, property.ElementType);
+                var enumerableLength = ExpressionHelpers.LengthOfEnumerable(enumerable, objectDetails.ElementType);
                 blockMembers.Add(Expression.Assign(lengthVar, enumerableLength));
 
-                var test = Expression.GreaterThan(lengthVar, Expression.Constant(property.EnumerableLength));
+                var test = Expression.GreaterThan(lengthVar, Expression.Constant(objectDetails.EnumerableLength));
                 var throwExpr = Expression.Throw(Expression.Constant(new Exception("You specified an explicit length for an array member, but the actual member is longer")));
                 blockMembers.Add(Expression.IfThen(test, throwExpr));
             }
 
             // If they specified a length field, we've already assigned it (yay how organised as we?!)
 
-            var loopVar = Expression.Variable(property.ElementType, "loopVariable");
-            var typeDetails =  this.SerializeScalarValue(loopVar, property.ElementObjectDetails);
-            blockMembers.Add(ExpressionHelpers.ForEach(enumerable, property.ElementType, loopVar, typeDetails.OperationExpression));
+            var loopVar = Expression.Variable(objectDetails.ElementType, "loopVariable");
+            var typeDetails = this.SerializeValue(loopVar, objectDetails.ElementObjectDetails);
+            blockMembers.Add(ExpressionHelpers.ForEach(enumerable, objectDetails.ElementType, loopVar, typeDetails.OperationExpression));
 
             // If it's a fixed-length array, we might need to pad it out
             // if (lengthVar < property.EnumerableLength)
@@ -191,21 +164,21 @@ namespace BitPacker
             // }
             if (hasFixedLength)
             {
-                var emptyInstanceVar = Expression.Variable(property.ElementType, "emptyInstance");
+                var emptyInstanceVar = Expression.Variable(objectDetails.ElementType, "emptyInstance");
                 blockVars.Add(emptyInstanceVar);
-                var emptyInstanceAssignment = Expression.Assign(emptyInstanceVar, Expression.New(property.ElementType));
+                var emptyInstanceAssignment = Expression.Assign(emptyInstanceVar, Expression.New(objectDetails.ElementType));
 
-                var initAndSerialize = this.SerializeScalarValue(emptyInstanceVar, property.ElementType, property).OperationExpression;
+                var initAndSerialize = this.SerializeValue(emptyInstanceVar, objectDetails.ElementObjectDetails).OperationExpression;
                 var i = Expression.Variable(typeof(int), "i");
 
                 var padding = Expression.IfThen(
-                    Expression.LessThan(lengthVar, Expression.Constant(property.EnumerableLength)),
+                    Expression.LessThan(lengthVar, Expression.Constant(objectDetails.EnumerableLength)),
                     Expression.Block(new[] { emptyInstanceVar },
                         emptyInstanceAssignment,
                         ExpressionHelpers.For(
                             i,
                             lengthVar,
-                            Expression.LessThan(i, Expression.Constant(property.EnumerableLength)),
+                            Expression.LessThan(i, Expression.Constant(objectDetails.EnumerableLength)),
                             Expression.PostIncrementAssign(i),
                             initAndSerialize
                         )
@@ -217,7 +190,7 @@ namespace BitPacker
 
             var block = Expression.Block(blockVars, blockMembers);
 
-            return new TypeDetails(hasFixedLength && typeDetails.HasFixedSize, hasFixedLength ? property.EnumerableLength * typeDetails.MinSize : 0, block);
+            return new TypeDetails(hasFixedLength && typeDetails.HasFixedSize, hasFixedLength ? objectDetails.EnumerableLength * typeDetails.MinSize : 0, block);
         }
     }
 }

@@ -16,7 +16,11 @@ namespace Sandbox
 
             var buffer = serializer.Serialize(new TestClass()
             {
-                SubClass = null,
+                ArrayField = new[]
+                {
+                    new TestSubClass(),
+                },
+                Enum = Test.Bar,
             });
         }
     }
@@ -26,11 +30,11 @@ namespace Sandbox
     [BitPackerObject]
     public class TestClass
     {
-        //[BitPackerMember(Length=2)]
-        //public TestSubClass[] ArrayField { get; set; }
+        [BitPackerMember(Length=2)]
+        public TestSubClass[] ArrayField { get; set; }
 
-        [BitPackerMember]
-        public TestSubClass SubClass { get; set; }
+        [BitPackerMember(EnumType=typeof(long))]
+        public Test Enum { get; set; }
     }
 
     [BitPackerObject]

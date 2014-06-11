@@ -79,10 +79,10 @@ namespace BitPacker
             var builder = new BitPackerExpressionBuilder(writer, subjectType);
             var typeDetails = builder.Serialize(subject);
 
-            //this.HasFixedSize = typeDetails.HasFixedSize;
-            //this.MinSize = typeDetails.MinSize;
+            this.HasFixedSize = typeDetails.HasFixedSize;
+            this.MinSize = typeDetails.MinSize;
 
-            //this.serializer = Expression.Lambda<Action<BinaryWriter, T>>(typeDetails.OperationExpression, writer, subject).Compile();
+            this.serializer = Expression.Lambda<Action<BinaryWriter, T>>(typeDetails.OperationExpression, writer, subject).Compile();
 	    }
 
         public void Serialize(BinaryWriter writer, T subject)
