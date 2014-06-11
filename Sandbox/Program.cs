@@ -16,7 +16,10 @@ namespace Sandbox
 
             var buffer = serializer.Serialize(new TestClass()
             {
-                SubClass = new TestSubClass(),
+                SubClass = new TestSubClass()
+                {
+                    FloatField = 5.0f
+                },
                 ArrayField = new[]
                 {
                     1, 2, 3
@@ -42,7 +45,7 @@ namespace Sandbox
     }
 
     [BitPackerObject]
-    public class TestSubClass
+    public class TestSubClass : ISerialize
     {
         [BitPackerMember]
         public float FloatField { get; set; }
@@ -52,5 +55,10 @@ namespace Sandbox
 
         [BitPackerMember]
         public int AnotherIntField { get; set; }
+
+        public void Serialize(BinaryWriter writer)
+        {
+            writer.Write(this.FloatField);
+        }
     }
 }

@@ -42,6 +42,7 @@
     <Compile Include="BitPackerExpressionBuilder.cs" />
     <Compile Include="BitPackerObjectAttribute.cs" />
     <Compile Include="BitPackerSerializer.cs" />
+    <Compile Include="Class1.cs" />
     <Compile Include="Endianness.cs" />
     <Compile Include="EndianUtilities.cs" />
     <Compile Include="ExpressionHelpers.cs" />

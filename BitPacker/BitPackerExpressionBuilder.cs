@@ -89,18 +89,28 @@ namespace BitPacker
             if (!objectDetails.IsCustomType)
                 return null;
 
-            var blockMembers = new List<Expression>();
-
-            var valueToSerialize = Expression.Variable(objectDetails.Type, "valueToSerialize");
-            blockMembers.Add(Expression.Assign(valueToSerialize, value));
-
+            Expression result;
             var typeDetails = objectDetails.Properties.Select(property => this.SerializeValue(property.Value, property)).ToArray();
 
-            blockMembers.AddRange(typeDetails.Select(x => x.OperationExpression));
+            // If they claim to be able to serialize themselves, let them
+            if (typeof(ISerialize).IsAssignableFrom(objectDetails.Type))
+            {
+                var method = typeof(ISerialize).GetMethod("Serialize");
+                result = Expression.Call(value, method, this.writer);
+            }
+            else
+            {
+                var blockMembers = new List<Expression>();
 
-            var block = Expression.Block(new[] { valueToSerialize }, blockMembers.Where(x => x != null));
+                var valueToSerialize = Expression.Variable(objectDetails.Type, "valueToSerialize");
+                blockMembers.Add(Expression.Assign(valueToSerialize, value));
 
-            return new TypeDetails(typeDetails.All(x => x.HasFixedSize), typeDetails.Sum(x => x.MinSize), block);
+                blockMembers.AddRange(typeDetails.Select(x => x.OperationExpression));
+
+                result = Expression.Block(new[] { valueToSerialize }, blockMembers.Where(x => x != null));
+            }
+
+            return new TypeDetails(typeDetails.All(x => x.HasFixedSize), typeDetails.Sum(x => x.MinSize), result);
         }
 
         private TypeDetails SerializePrimitive(Expression value, ObjectDetails objectDetails)
