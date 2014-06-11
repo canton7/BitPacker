@@ -29,8 +29,8 @@ namespace BitPacker
             var subjectVar = Expression.Variable(subjectType, "typedSubject");
             var assignment = Expression.Assign(subjectVar, Expression.Convert(subject, subjectType));
 
-            var builder = new BitPackerExpressionBuilder(writer);
-            var typeDetails = builder.SerializeCustomType(subjectVar, subjectType);
+            var builder = new BitPackerExpressionBuilder(writer, subjectType);
+            var typeDetails = builder.Serialize(subjectVar);
 
             this.HasFixedSize = typeDetails.HasFixedSize;
             this.MinSize = typeDetails.MinSize;
@@ -76,13 +76,13 @@ namespace BitPacker
             var writer = Expression.Parameter(typeof(BinaryWriter), "writer");
             var subject = Expression.Parameter(subjectType, "subject");
 
-            var builder = new BitPackerExpressionBuilder(writer);
-            var typeDetails = builder.SerializeCustomType(subject, subjectType);
+            var builder = new BitPackerExpressionBuilder(writer, subjectType);
+            var typeDetails = builder.Serialize(subject);
 
-            this.HasFixedSize = typeDetails.HasFixedSize;
-            this.MinSize = typeDetails.MinSize;
+            //this.HasFixedSize = typeDetails.HasFixedSize;
+            //this.MinSize = typeDetails.MinSize;
 
-            this.serializer = Expression.Lambda<Action<BinaryWriter, T>>(typeDetails.OperationExpression, writer, subject).Compile();
+            //this.serializer = Expression.Lambda<Action<BinaryWriter, T>>(typeDetails.OperationExpression, writer, subject).Compile();
 	    }
 
         public void Serialize(BinaryWriter writer, T subject)

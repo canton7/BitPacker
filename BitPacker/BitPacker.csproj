@@ -45,6 +45,7 @@
     <Compile Include="Endianness.cs" />
     <Compile Include="EndianUtilities.cs" />
     <Compile Include="ExpressionHelpers.cs" />
+    <Compile Include="ObjectDetails.cs" />
     <Compile Include="PrimitiveTypeInfo.cs" />
     <Compile Include="PrimitiveTypes.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

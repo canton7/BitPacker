@@ -37,7 +37,8 @@ namespace BitPacker
     internal class PropertyDetails : PropertyAttributes
     {
         private readonly PropertyInfo propertyInfo;
-        protected readonly PropertyInfo lengthProperty;
+        private readonly ObjectDetails objectDetails;
+        private readonly ObjectDetails elementObjectDetails;
 
         public PropertyInfo PropertyInfo
         {
@@ -64,24 +65,31 @@ namespace BitPacker
             }
         }
 
-        public PropertyInfo LengthProperty
+        public ObjectDetails ObjectDetails
         {
-            get { return this.lengthProperty; }
+            get { return this.objectDetails; }
         }
 
-        public PropertyDetails(Type parentType, PropertyInfo propertyInfo, BitPackerMemberAttribute attribute, Endianness defaultEndianness)
+        public ObjectDetails ElementObjectDetails
+        {
+            get { return this.elementObjectDetails; }
+        }
+
+        public PropertyDetails(PropertyInfo propertyInfo, BitPackerMemberAttribute attribute, Endianness defaultEndianness)
             : base(attribute, defaultEndianness)
         {
             this.propertyInfo = propertyInfo;
 
-            if (this.attribute.LengthField != null)
-            {
-                this.lengthProperty = parentType.GetProperty(this.attribute.LengthField, BindingFlags.Public | BindingFlags.Instance);
-                if (this.lengthProperty == null)
-                    throw new Exception(String.Format("Could not find length field {0}", this.attribute.LengthField));
-                if (this.lengthProperty.PropertyType != typeof(int))
-                    throw new Exception(String.Format("Length field {0} must have type int", this.attribute.LengthField));
-            }
+            this.objectDetails = new ObjectDetails(this.propertyInfo.PropertyType, this.Endianness);
+            if (this.IsEnumable)
+                this.elementObjectDetails = new ObjectDetails(this.ElementType, this.Endianness);
+        }
+
+        public void Discover()
+        {
+            this.objectDetails.Discover();
+            if (this.elementObjectDetails != null)
+                this.elementObjectDetails.Discover();
         }
     }
 }
