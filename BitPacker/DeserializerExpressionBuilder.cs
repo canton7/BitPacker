@@ -11,6 +11,7 @@ namespace BitPacker
     {
         private readonly Expression reader;
         private readonly Type objectType;
+        private Dictionary<string, ObjectDetails> lengthFields;
 
         public DeserializerExpressionBuilder(Expression reader, Type objectType)
         {
@@ -22,6 +23,8 @@ namespace BitPacker
         {
             var objectDetails = new ObjectDetails(this.objectType, subject, new BitPackerMemberAttribute());
             objectDetails.Discover();
+
+            this.lengthFields = this.FindLengthFields(objectDetails);
 
             // First, we need to make sure it's fully constructed
             var blockMembers = new List<Expression>();
@@ -48,10 +51,25 @@ namespace BitPacker
             return blockMembers.Any() ? Expression.Block(blockMembers) : null;
         }
 
+        private Dictionary<string, ObjectDetails> FindLengthFields(ObjectDetails objectDetails)
+        {
+            var groups = objectDetails.RecursiveFlatProperties()
+                .Where(x => x.LengthKey != null && PrimitiveTypes.IsPrimitive(x.Type) && PrimitiveTypes.Types[x.Type].IsIntegral)
+                .GroupBy(x => x.LengthKey).ToArray();
+
+            foreach (var group in groups)
+            {
+                if (group.Count() > 1)
+                    throw new Exception(String.Format("More than one integral field found with Length Key {0}", group.Key));
+            }
+
+            return groups.ToDictionary(x => x.Key, x => x.First());
+        }
+
         private TypeDetails DeserializeValue(ObjectDetails objectDetails)
         {
-            //if (objectDetails.IsEnumerable)
-            //    return this.DeserializeEnumerable(objectDetails);
+            if (objectDetails.IsEnumerable)
+                return this.DeserializeEnumerable(objectDetails);
 
             if (PrimitiveTypes.Types.ContainsKey(objectDetails.Type))
                 return this.DeserializeAndAssignPrimitive(objectDetails);
@@ -121,6 +139,62 @@ namespace BitPacker
             var typeDetails = this.DeserializePrimitive(objectDetails.EnumEquivalentObjectDetails);
             var expression = Expression.Assign(objectDetails.Value, Expression.Convert(typeDetails.OperationExpression, objectDetails.Type));
             return new TypeDetails(typeDetails.HasFixedSize, typeDetails.MinSize, expression);
+        }
+
+        private TypeDetails DeserializeEnumerable(ObjectDetails objectDetails)
+        {
+            // We start everything off as an array, then convert to a list if appropriate
+            var arrayVar = Expression.Parameter(objectDetails.ElementType.MakeArrayType(), "array");
+            bool hasFixedLength = objectDetails.EnumerableLength > 0;
+
+            Expression arrayInit;
+            Expression arrayLength;
+
+            // Is it variable legnth
+            if (objectDetails.LengthKey != null)
+            {
+                ObjectDetails lengthField;
+                if (!this.lengthFields.TryGetValue(objectDetails.LengthKey, out lengthField))
+                    throw new Exception(String.Format("Could not find integer field with Length Key {0}", objectDetails.LengthKey));
+
+                arrayInit = Expression.Assign(
+                    arrayVar,
+                    Expression.NewArrayBounds(objectDetails.ElementType, lengthField.Value)
+                );
+                arrayLength = lengthField.Value;
+            }
+            else if (hasFixedLength)
+            {
+                arrayLength = Expression.Constant(objectDetails.EnumerableLength);
+                arrayInit = Expression.Assign(
+                    arrayVar,
+                    Expression.NewArrayBounds(objectDetails.ElementType, arrayLength)
+                );
+                
+            }
+            else
+            {
+                throw new Exception("Unknown length for array");
+            }
+
+            //var typeDetails this.DeserializeValue(objectDetails.ElementObjectDetails);
+
+            var loopVar = Expression.Variable(typeof(int), "loopVar");
+            var forLoop = ExpressionHelpers.For(
+                loopVar,
+                Expression.Constant(0),
+                Expression.LessThan(loopVar, arrayLength),
+                Expression.PostIncrementAssign(loopVar),
+                Expression.Assign(
+                    Expression.ArrayAccess(arrayVar, loopVar),
+                    Expression.Constant(0, objectDetails.ElementType)
+                    //typeDetails.OperationExpression
+                )
+            );
+
+
+            //return new TypeDetails(hasFixedLength && typeDetails.HasFixedSize, hasFixedLength ? objectDetails.EnumerableLength * typeDetails.MinSize : 0, block);
+            return null;
         }
     }
 }

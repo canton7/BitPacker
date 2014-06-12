@@ -50,7 +50,7 @@ namespace BitPacker
 
         public bool IsEnumerable
         {
-            get { return this.Type.IsArray || typeof(IEnumerable<>).IsAssignableFrom(this.Type); }
+            get { return this.Type.IsArray || this.Type.Implements(typeof(IEnumerable<>)); }
         }
 
         public Type ElementType
