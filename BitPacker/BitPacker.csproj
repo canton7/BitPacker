@@ -39,7 +39,10 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="BitPackerExpressionBuilder.cs" />
+    <Compile Include="BitPackerDeserializer.cs" />
+    <Compile Include="DeserializerExpressionBuilder.cs" />
+    <Compile Include="IDeserialize.cs" />
+    <Compile Include="SerializerExpressionBuilder.cs" />
     <Compile Include="BitPackerObjectAttribute.cs" />
     <Compile Include="BitPackerSerializer.cs" />
     <Compile Include="Endianness.cs" />

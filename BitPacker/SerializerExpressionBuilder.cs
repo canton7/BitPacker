@@ -10,12 +10,12 @@ using System.Reflection;
 
 namespace BitPacker
 {
-    internal class BitPackerExpressionBuilder
+    internal class SerializerExpressionBuilder
     {
         private readonly Expression writer;
         private readonly Type objectType;
 
-        public BitPackerExpressionBuilder(Expression writer, Type objectType)
+        public SerializerExpressionBuilder(Expression writer, Type objectType)
         {
             this.writer = writer;
             this.objectType = objectType;
@@ -31,7 +31,6 @@ namespace BitPacker
             blockMembers.Add(this.HandleVariableLengthArrays(subject, objectDetails));
 
             var serialized = this.SerializeCustomType(subject, objectDetails);
-
             blockMembers.Add(serialized.OperationExpression);
 
             return new TypeDetails(serialized.HasFixedSize, serialized.MinSize, Expression.Block(blockMembers.Where(x => x != null)));
@@ -49,7 +48,7 @@ namespace BitPacker
                 var keys = group.Where(x => PrimitiveTypes.IsPrimitive(x.Type) && PrimitiveTypes.Types[x.Type].IsIntegral).ToArray();
 
                 if (arrays.Length != 1)
-                    throw new Exception(String.Format("Found zero, ormore than one arrays fields for Length Key {0}", group.Key));
+                    throw new Exception(String.Format("Found zero, or more than one arrays fields for Length Key {0}", group.Key));
 
                 if (keys.Length != 1)
                     throw new Exception(String.Format("Found zero, or more than one integral fields for Length Key {0}", group.Key));
@@ -100,14 +99,9 @@ namespace BitPacker
             }
             else
             {
-                var blockMembers = new List<Expression>();
+                var blockMembers = typeDetails.Select(x => x.OperationExpression);
 
-                var valueToSerialize = Expression.Variable(objectDetails.Type, "valueToSerialize");
-                blockMembers.Add(Expression.Assign(valueToSerialize, value));
-
-                blockMembers.AddRange(typeDetails.Select(x => x.OperationExpression));
-
-                result = Expression.Block(new[] { valueToSerialize }, blockMembers.Where(x => x != null));
+                result = Expression.Block(blockMembers.Where(x => x != null));
             }
 
             return new TypeDetails(typeDetails.All(x => x.HasFixedSize), typeDetails.Sum(x => x.MinSize), result);

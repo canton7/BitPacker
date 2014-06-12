@@ -29,7 +29,7 @@ namespace BitPacker
             var subjectVar = Expression.Variable(subjectType, "typedSubject");
             var assignment = Expression.Assign(subjectVar, Expression.Convert(subject, subjectType));
 
-            var builder = new BitPackerExpressionBuilder(writer, subjectType);
+            var builder = new SerializerExpressionBuilder(writer, subjectType);
             var typeDetails = builder.Serialize(subjectVar);
 
             this.HasFixedSize = typeDetails.HasFixedSize;
@@ -76,7 +76,7 @@ namespace BitPacker
             var writer = Expression.Parameter(typeof(BinaryWriter), "writer");
             var subject = Expression.Parameter(subjectType, "subject");
 
-            var builder = new BitPackerExpressionBuilder(writer, subjectType);
+            var builder = new SerializerExpressionBuilder(writer, subjectType);
             var typeDetails = builder.Serialize(subject);
 
             this.HasFixedSize = typeDetails.HasFixedSize;

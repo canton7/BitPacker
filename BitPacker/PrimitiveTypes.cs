@@ -8,25 +8,25 @@ namespace BitPacker
 {
     internal static class PrimitiveTypes
     {
-        public static IReadOnlyDictionary<Type, PrimitiveTypeInfo> Types;
+        public static IReadOnlyDictionary<Type, IPrimitiveTypeInfo> Types;
 
         static PrimitiveTypes()
         {
-            var primitiveTypes = new[]
+            var primitiveTypes = new IPrimitiveTypeInfo[]
             {
-                new PrimitiveTypeInfo(typeof(bool), sizeof(bool), false),
-                new PrimitiveTypeInfo(typeof(byte), sizeof(byte), true),
-                new PrimitiveTypeInfo(typeof(char), sizeof(char), false),
-                new PrimitiveTypeInfo(typeof(sbyte), sizeof(sbyte), true),
-                new PrimitiveTypeInfo(typeof(double), sizeof(double), false),
-                new PrimitiveTypeInfo(typeof(decimal), sizeof(decimal), false),
-                new PrimitiveTypeInfo(typeof(short), sizeof(short), true),
-                new PrimitiveTypeInfo(typeof(ushort), sizeof(ushort), true),
-                new PrimitiveTypeInfo(typeof(int), sizeof(int), true),
-                new PrimitiveTypeInfo(typeof(uint), sizeof(uint), true),
-                new PrimitiveTypeInfo(typeof(long), sizeof(long), true),
-                new PrimitiveTypeInfo(typeof(ulong), sizeof(ulong), true),
-                new PrimitiveTypeInfo(typeof(float), sizeof(float), false),
+                new PrimitiveTypeInfo<bool>(sizeof(bool), false, (x, y) => x.Write(y), x => x.ReadBoolean()),
+                new PrimitiveTypeInfo<byte>(sizeof(byte), true, (x, y) => x.Write(y), x => x.ReadByte()),
+                new PrimitiveTypeInfo<char>(sizeof(char), false, (x, y) => x.Write(y), x => x.ReadChar()),
+                new PrimitiveTypeInfo<sbyte>(sizeof(sbyte), true, (x, y) => x.Write(y), x => x.ReadSByte()),
+                new PrimitiveTypeInfo<double>(sizeof(double), false, (x, y) => x.Write(y), x => x.ReadDouble()),
+                new PrimitiveTypeInfo<decimal>(sizeof(decimal), false, (x, y) => x.Write(y), x => x.ReadDecimal()),
+                new PrimitiveTypeInfo<short>(sizeof(short), true, (x, y) => x.Write(y), x => x.ReadInt16()),
+                new PrimitiveTypeInfo<ushort>(sizeof(ushort), true, (x, y) => x.Write(y), x => x.ReadUInt16()),
+                new PrimitiveTypeInfo<int>(sizeof(int), true, (x, y) => x.Write(y), x => x.ReadInt32()),
+                new PrimitiveTypeInfo<uint>(sizeof(uint), true, (x, y) => x.Write(y), x => x.ReadUInt32()),
+                new PrimitiveTypeInfo<long>(sizeof(long), true, (x, y) => x.Write(y), x => x.ReadInt64()),
+                new PrimitiveTypeInfo<ulong>(sizeof(ulong), true, (x, y) => x.Write(y), x => x.ReadUInt64()),
+                new PrimitiveTypeInfo<float>(sizeof(float), false, (x, y) => x.Write(y), x => x.ReadSingle()),
             };
             Types = primitiveTypes.ToDictionary(x => x.Type, x => x);
         }
