@@ -42,10 +42,10 @@
     <Compile Include="BitPackerExpressionBuilder.cs" />
     <Compile Include="BitPackerObjectAttribute.cs" />
     <Compile Include="BitPackerSerializer.cs" />
-    <Compile Include="Class1.cs" />
     <Compile Include="Endianness.cs" />
     <Compile Include="EndianUtilities.cs" />
     <Compile Include="ExpressionHelpers.cs" />
+    <Compile Include="ISerialize.cs" />
     <Compile Include="ObjectDetails.cs" />
     <Compile Include="PrimitiveTypeInfo.cs" />
     <Compile Include="PrimitiveTypes.cs" />
