@@ -17,21 +17,21 @@ namespace Sandbox
 
             var buffer = serializer.Serialize(new TestClass()
             {
-                SubClass = new TestSubClass()
-                {
-                    FloatField = 5.0f
-                },
-                //ArrayField = new List<int>()
+                //SubClass = new TestSubClass()
                 //{
-                //    1, 2, 3
+                //    FloatField = 5.0f
                 //},
+                ArrayField = new List<TestSubClass>()
+                {
+                    new TestSubClass()
+                },
+                //ArrayField = new List<int>() { 1, 2, 3 },
                 Enum = Test.Bar,
             });
 
             var deserializer = new BitPackerDeserializer(typeof(TestClass));
 
-            var deserialized = new TestClass();
-            deserializer.Deserialize(new BinaryReader(new MemoryStream(buffer)), deserialized);
+            var deserialized = deserializer.Deserialize(new BinaryReader(new MemoryStream(buffer)));
         }
     }
 
@@ -40,11 +40,11 @@ namespace Sandbox
     [BitPackerObject]
     public class TestClass
     {
-        [BitPackerMember]
-        public TestSubClass SubClass { get; set; }
+     //   [BitPackerMember]
+     //   public TestSubClass SubClass { get; set; }
 
-        //[BitPackerMember(LengthKey="Test")]
-        //public List<int> ArrayField { get; set; }
+        [BitPackerMember(Length=3)]
+        public List<TestSubClass> ArrayField { get; set; }
 
         [BitPackerMember(EnumType=typeof(long))]
         public Test Enum { get; set; }
@@ -56,8 +56,8 @@ namespace Sandbox
         [BitPackerMember]
         public float FloatField { get; set; }
 
-        //[BitPackerMember(LengthKey="Test")]
-        //public int IntField { get; set; }
+        [BitPackerMember]
+        public int IntField { get; set; }
 
         [BitPackerMember]
         public int AnotherIntField { get; set; }

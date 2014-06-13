@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
@@ -10,13 +11,13 @@ namespace BitPacker
 {
     internal class ObjectDetails
     {
-        private readonly Type type;
-        private readonly Expression value;
-        private Endianness? endianness;
-        private List<ObjectDetails> properties;
-        private readonly BitPackerMemberAttribute propertyAttribute;
-        private readonly ObjectDetails elementObjectDetails;
-        private readonly ObjectDetails enumEquivalentObjectDetails;
+        protected readonly Type type;
+        protected readonly Expression value;
+        protected Endianness? endianness;
+        protected List<PropertyObjectDetails> properties;
+        protected readonly BitPackerMemberAttribute propertyAttribute;
+        protected readonly EnumerableElementObjectDetails elementObjectDetails;
+        protected readonly EnumObjectDetails enumEquivalentObjectDetails;
 
         public Type Type
         {
@@ -38,7 +39,7 @@ namespace BitPacker
             get { return this.propertyAttribute.LengthKey; }
         }
         
-        public IReadOnlyList<ObjectDetails> Properties
+        public IReadOnlyList<PropertyObjectDetails> Properties
         {
             get { return this.properties; }
         }
@@ -63,7 +64,7 @@ namespace BitPacker
             }
         }
 
-        public ObjectDetails ElementObjectDetails
+        public EnumerableElementObjectDetails ElementObjectDetails
         {
             get
             {
@@ -93,7 +94,7 @@ namespace BitPacker
             }
         }
 
-        public ObjectDetails EnumEquivalentObjectDetails
+        public EnumObjectDetails EnumEquivalentObjectDetails
         {
             get
             {
@@ -111,12 +112,25 @@ namespace BitPacker
             this.propertyAttribute = propertyAttribute;
 
             if (this.IsEnumerable)
-                this.elementObjectDetails = new ObjectDetails(this.ElementType, null, this.propertyAttribute, this.Endianness);
+                this.elementObjectDetails = new EnumerableElementObjectDetails(this.ElementType, Expression.Variable(this.ElementType, "elementVar"), this.propertyAttribute, this.Endianness);
 
             if (this.IsEnum)
             {
-                this.enumEquivalentObjectDetails = new ObjectDetails(this.EnumEquivalentType, this.value, this.propertyAttribute, this.Endianness);
+                this.enumEquivalentObjectDetails = new EnumObjectDetails(this.EnumEquivalentType, this.value, this.propertyAttribute, this.Endianness);
                 this.CheckEnum();
+            }
+        }
+
+        private void CheckEnum()
+        {
+            // Check that no value in the enum exceeds the given size
+            var length = PrimitiveTypes.Types[this.EnumEquivalentType].Size;
+            var maxVal = Math.Pow(2, length * 8);
+            // Can't use linq, as it's an non-generic IEnumerable of value types
+            foreach (var enumVal in Enum.GetValues(this.Type))
+            {
+                if ((int)enumVal > maxVal)
+                    throw new Exception(String.Format("Enum type {0} has a size of {1} bytes, but has a member which is greater than this", this.Type, length));
             }
         }
 
@@ -131,7 +145,7 @@ namespace BitPacker
                                   let propertyAttribute = property.GetCustomAttribute<BitPackerMemberAttribute>(false)
                                   where propertyAttribute != null
                                   orderby propertyAttribute.Order
-                                  select new ObjectDetails(property.PropertyType, Expression.MakeMemberAccess(this.value, property), propertyAttribute, this.Endianness)).ToList();
+                                  select new PropertyObjectDetails(property, Expression.MakeMemberAccess(this.value, property), propertyAttribute, this.Endianness)).ToList();
 
                 foreach (var property in properties)
                 {
@@ -148,18 +162,7 @@ namespace BitPacker
                 this.enumEquivalentObjectDetails.Discover();
         }
 
-        private void CheckEnum()
-        {
-            // Check that no value in the enum exceeds the given size
-            var length = PrimitiveTypes.Types[this.EnumEquivalentType].Size;
-            var maxVal = Math.Pow(2, length * 8);
-            // Can't use linq, as it's an non-generic IEnumerable of value types
-            foreach (var enumVal in Enum.GetValues(this.Type))
-            {
-                if ((int)enumVal > maxVal)
-                    throw new Exception(String.Format("Enum type {0} has a size of {1} bytes, but has a member which is greater than this", this.Type, length));
-            }
-        }
+        
 
         public IEnumerable<ObjectDetails> RecursiveFlatProperties()
         {
@@ -167,6 +170,53 @@ namespace BitPacker
                 return new[] { this };
             else
                 return new[] { this }.Concat(this.properties.SelectMany(x => x.RecursiveFlatProperties()));
+        }
+    }
+
+    internal class PropertyObjectDetails : ObjectDetails
+    {
+        private readonly PropertyInfo propertyInfo;
+
+        public PropertyObjectDetails(PropertyInfo propertyInfo, Expression value, BitPackerMemberAttribute propertyAttribute, Endianness? endianness = null)
+            : base(propertyInfo.PropertyType, value, propertyAttribute, endianness)
+        {
+            this.propertyInfo = propertyInfo;
+        }
+
+        public Expression AccessExpression(Expression parent)
+        {
+            return Expression.MakeMemberAccess(parent, this.propertyInfo);
+        }
+    }
+
+    internal class EnumObjectDetails : ObjectDetails
+    {
+        public EnumObjectDetails(Type type, Expression value, BitPackerMemberAttribute propertyAttribute, Endianness? endianness = null)
+            : base(type, value, propertyAttribute, endianness)
+        { }
+
+        
+    }
+
+    internal class EnumerableElementObjectDetails : ObjectDetails
+    {
+        public EnumerableElementObjectDetails(Type type, Expression value, BitPackerMemberAttribute propertyAttribute, Endianness? endianness = null)
+            : base(type, value, propertyAttribute, endianness)
+        { }
+
+        public Expression AssignExpression(ParameterExpression parent, Expression index, Expression value)
+        {
+            if (parent.Type.IsArray)
+            {
+                return Expression.Assign(Expression.ArrayAccess(parent, index), value);
+            }
+            if (parent.Type.Implements(typeof(IList<>)))
+            {
+                var method = parent.Type.GetMethod("Add");
+                // We ignore the index for this one
+                return Expression.Call(parent, method, value);
+            }
+            throw new InvalidOperationException("Can't assign to member of something which isn't an array or IList");
         }
     }
 }

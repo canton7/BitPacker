@@ -89,7 +89,7 @@ namespace BitPacker
                 return null;
 
             Expression result;
-            var typeDetails = objectDetails.Properties.Select(property => this.SerializeValue(property.Value, property)).ToArray();
+            var typeDetails = objectDetails.Properties.Select(property => this.SerializeValue(property.AccessExpression(value), property)).ToArray();
 
             // If they claim to be able to serialize themselves, let them
             if (typeof(ISerialize).IsAssignableFrom(objectDetails.Type))

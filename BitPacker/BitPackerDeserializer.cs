@@ -10,7 +10,7 @@ namespace BitPacker
 {
     public class BitPackerDeserializer
     {
-        private Action<BinaryReader, object> deserializer;
+        private Func<BinaryReader, object> deserializer;
         private Type subjectType;
 
         public bool HasFixedSize { get; private set; }
@@ -21,19 +21,14 @@ namespace BitPacker
             this.subjectType = subjectType;
 
             var reader = Expression.Parameter(typeof(BinaryReader), "reader");
-            var subject = Expression.Parameter(typeof(object), "subject");
-
-            var subjectVar = Expression.Variable(subjectType, "typedSubject");
-            var assignment = Expression.Assign(subjectVar, Expression.Convert(subject, subjectType));
 
             var builder = new DeserializerExpressionBuilder(reader, subjectType);
-            var typeDetails = builder.Deserialize(subjectVar);
+            var typeDetails = builder.Deserialize();
 
             this.HasFixedSize = typeDetails.HasFixedSize;
             this.MinSize = typeDetails.MinSize;
 
-            var block = Expression.Block(new[] { subjectVar }, assignment, typeDetails.OperationExpression);
-            this.deserializer = Expression.Lambda<Action<BinaryReader, object>>(block, reader, subject).Compile();
+            this.deserializer = Expression.Lambda<Func<BinaryReader, object>>(typeDetails.OperationExpression, reader).Compile();
         }
 
         private void CheckType(object subject)
@@ -42,10 +37,9 @@ namespace BitPacker
                 throw new Exception(String.Format("Deserializer for type {0} call with subject of type {1}", this.subjectType, subject.GetType()));
         }
 
-        public void Deserialize(BinaryReader reader, object subject)
+        public object Deserialize(BinaryReader reader)
         {
-            this.CheckType(subject);
-            this.deserializer(reader, subject);
+            return this.deserializer(reader);
         }
     }
 }
