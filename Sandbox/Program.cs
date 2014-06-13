@@ -21,10 +21,10 @@ namespace Sandbox
                 {
                     FloatField = 5.0f
                 },
-                ArrayField = new List<int>()
-                {
-                    1, 2, 3
-                },
+                //ArrayField = new List<int>()
+                //{
+                //    1, 2, 3
+                //},
                 Enum = Test.Bar,
             });
 
@@ -43,8 +43,8 @@ namespace Sandbox
         [BitPackerMember]
         public TestSubClass SubClass { get; set; }
 
-        [BitPackerMember(LengthKey="Test")]
-        public List<int> ArrayField { get; set; }
+        //[BitPackerMember(LengthKey="Test")]
+        //public List<int> ArrayField { get; set; }
 
         [BitPackerMember(EnumType=typeof(long))]
         public Test Enum { get; set; }
@@ -56,8 +56,8 @@ namespace Sandbox
         [BitPackerMember]
         public float FloatField { get; set; }
 
-        [BitPackerMember(LengthKey="Test")]
-        public int IntField { get; set; }
+        //[BitPackerMember(LengthKey="Test")]
+        //public int IntField { get; set; }
 
         [BitPackerMember]
         public int AnotherIntField { get; set; }

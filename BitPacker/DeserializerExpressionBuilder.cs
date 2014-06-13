@@ -29,7 +29,7 @@ namespace BitPacker
             // First, we need to make sure it's fully constructed
             var blockMembers = new List<Expression>();
 
-            blockMembers.Add(this.EnsureFullyConstructed(objectDetails));
+            //blockMembers.Add(this.EnsureFullyConstructed(objectDetails));
 
             var deserialized = this.DeserializeCustomType(objectDetails);
             blockMembers.Add(deserialized.OperationExpression);
@@ -37,19 +37,19 @@ namespace BitPacker
             return new TypeDetails(deserialized.HasFixedSize, deserialized.MinSize, Expression.Block(blockMembers.Where(x => x != null)));
         }
 
-        private Expression EnsureFullyConstructed(ObjectDetails objectDetails)
-        {
-            var properties = objectDetails.RecursiveFlatProperties().Where(x => x.IsCustomType);
-            var blockMembers = properties.Select(property =>
-            {
-                return Expression.IfThen(
-                    Expression.Equal(property.Value, Expression.Constant(null, property.Type)),
-                    Expression.Assign(property.Value, Expression.New(property.Type))
-                );
-            });
+        //private Expression EnsureFullyConstructed(ObjectDetails objectDetails)
+        //{
+        //    var properties = objectDetails.RecursiveFlatProperties().Where(x => x.IsCustomType);
+        //    var blockMembers = properties.Select(property =>
+        //    {
+        //        return Expression.IfThen(
+        //            Expression.Equal(property.Value, Expression.Constant(null, property.Type)),
+        //            Expression.Assign(property.Value, Expression.New(property.Type))
+        //        );
+        //    });
 
-            return blockMembers.Any() ? Expression.Block(blockMembers) : null;
-        }
+        //    return blockMembers.Any() ? Expression.Block(blockMembers) : null;
+        //}
 
         private Dictionary<string, ObjectDetails> FindLengthFields(ObjectDetails objectDetails)
         {
@@ -85,26 +85,31 @@ namespace BitPacker
 
         public TypeDetails DeserializeCustomType(ObjectDetails objectDetails)
         {
-            // If it's not marked with our attribute, we're not serializing it
+            // If it's not marked with our attribute, we're not deserializing it
             if (!objectDetails.IsCustomType)
                 return null;
 
-            Expression result;
+            var blockMembers = new List<Expression>();
+
+            blockMembers.Add(Expression.IfThen(
+                Expression.Equal(objectDetails.Value, Expression.Constant(null, objectDetails.Type)),
+                Expression.Assign(objectDetails.Value, Expression.New(objectDetails.Type))
+            ));
+
             var typeDetails = objectDetails.Properties.Select(property => this.DeserializeValue(property)).ToArray();
 
             // If they claim to be able to serialize themselves, let them
             if (typeof(IDeserialize).IsAssignableFrom(objectDetails.Type))
             {
                 var method = typeof(ISerialize).GetMethod("Deserialize");
-                result = Expression.Call(objectDetails.Value, method, this.reader);
+                blockMembers.Add(Expression.Call(objectDetails.Value, method, this.reader));
             }
             else
             {
-                var blockMembers = typeDetails.Select(x => x.OperationExpression);
-
-                result = Expression.Block(blockMembers.Where(x => x != null));
+                blockMembers.AddRange(typeDetails.Select(x => x.OperationExpression));
             }
 
+            var result = Expression.Block(blockMembers.Where(x => x != null));
             return new TypeDetails(typeDetails.All(x => x.HasFixedSize), typeDetails.Sum(x => x.MinSize), result);
         }
 
