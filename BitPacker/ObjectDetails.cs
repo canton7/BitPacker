@@ -164,12 +164,12 @@ namespace BitPacker
 
         
 
-        public IEnumerable<ObjectDetails> RecursiveFlatProperties()
+        public IEnumerable<PropertyObjectDetails> RecursiveFlatProperties()
         {
             if (this.properties == null)
-                return new[] { this };
+                return Enumerable.Empty<PropertyObjectDetails>();
             else
-                return new[] { this }.Concat(this.properties.SelectMany(x => x.RecursiveFlatProperties()));
+                return this.properties.SelectMany(x => new[] { x }.Concat(x.RecursiveFlatProperties()));
         }
     }
 

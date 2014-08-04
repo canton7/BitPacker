@@ -21,12 +21,13 @@ namespace Sandbox
                 //{
                 //    FloatField = 5.0f
                 //},
-                ArrayField = new List<TestSubClass>()
-                {
-                    new TestSubClass()
-                },
+                //ArrayField = new List<TestSubClass>()
+                //{
+                //    new TestSubClass()
+                //},
+                TheArray = new List<int>(){ 1, 2, 3 },
                 //ArrayField = new List<int>() { 1, 2, 3 },
-                Enum = Test.Bar,
+                //Enum = Test.Bar,
             });
 
             var deserializer = new BitPackerDeserializer(typeof(TestClass));
@@ -43,11 +44,17 @@ namespace Sandbox
      //   [BitPackerMember]
      //   public TestSubClass SubClass { get; set; }
 
-        [BitPackerMember(Length=3)]
-        public List<TestSubClass> ArrayField { get; set; }
+        [BitPackerMember(LengthKey = "foo")]
+        public int Length { get; set; }
 
-        [BitPackerMember(EnumType=typeof(long))]
-        public Test Enum { get; set; }
+        [BitPackerMember(LengthKey = "foo")]
+        public List<int> TheArray { get; set; }
+
+        //[BitPackerMember(Length=3)]
+        //public List<TestSubClass> ArrayField { get; set; }
+
+        //[BitPackerMember(EnumType=typeof(long))]
+        //public Test Enum { get; set; }
     }
 
     [BitPackerObject]
