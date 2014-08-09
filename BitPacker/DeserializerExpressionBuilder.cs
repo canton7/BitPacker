@@ -21,7 +21,7 @@ namespace BitPacker
 
         public TypeDetails Deserialize()
         {
-            var subject = Expression.Parameter(this.objectType, "subject");
+            var subject = Expression.Parameter(this.objectType, "rootSubject");
 
             var objectDetails = new ObjectDetails(this.objectType, subject, new BitPackerMemberAttribute());
             objectDetails.Discover();
@@ -100,7 +100,7 @@ namespace BitPacker
                 return null;
 
             var blockMembers = new List<Expression>();
-            var subject = Expression.Variable(objectDetails.Type, "subject");
+            var subject = Expression.Variable(objectDetails.Type, objectDetails.Type.Name);
 
             blockMembers.Add(Expression.Assign(subject, Expression.New(objectDetails.Type)));
 
@@ -153,7 +153,7 @@ namespace BitPacker
         {
             bool hasFixedLength = objectDetails.EnumerableLength > 0;
 
-            var subject = Expression.Parameter(objectDetails.Type, "subject");
+            var subject = Expression.Parameter(objectDetails.Type, String.Format("enumerableOf{0}", objectDetails.ElementType.Name));
             Expression arrayInit;
             Expression arrayLength;
 
