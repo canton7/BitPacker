@@ -11,7 +11,6 @@ namespace BitPacker
     {
         private readonly Expression reader;
         private readonly Type objectType;
-        private Dictionary<string, ObjectDetails> lengthFields;
 
         public DeserializerExpressionBuilder(Expression reader, Type objectType)
         {
@@ -26,12 +25,11 @@ namespace BitPacker
             var objectDetails = new ObjectDetails(this.objectType, subject, new BitPackerMemberAttribute());
             objectDetails.Discover();
 
-            this.lengthFields = this.FindLengthFields(objectDetails);
-
             // First, we need to make sure it's fully constructed
             var blockMembers = new List<Expression>();
 
-            var deserialized = this.DeserializeAndAssignValue(subject, objectDetails);
+            var objectPath = new ImmutableStack<ObjectDetails>(objectDetails);
+            var deserialized = this.DeserializeAndAssignValue(subject, objectPath);
             blockMembers.Add(deserialized.OperationExpression);
             // Set return value
             blockMembers.Add(subject);
@@ -55,31 +53,17 @@ namespace BitPacker
         //    return blockMembers.Any() ? Expression.Block(blockMembers) : null;
         //}
 
-        private Dictionary<string, ObjectDetails> FindLengthFields(ObjectDetails objectDetails)
+        private TypeDetails DeserializeAndAssignValue(Expression subject, IImmutableStack<ObjectDetails> objectPath)
         {
-            var groups = objectDetails.RecursiveFlatProperties()
-                .Where(x => x.LengthKey != null && PrimitiveTypes.IsPrimitive(x.Type) && PrimitiveTypes.Types[x.Type].IsIntegral)
-                .GroupBy(x => x.LengthKey).ToArray();
-
-            foreach (var group in groups)
-            {
-                if (group.Count() > 1)
-                    throw new Exception(String.Format("More than one integral field found with Length Key {0}", group.Key));
-            }
-
-            return groups.ToDictionary(x => x.Key, x => x.First());
-        }
-
-        private TypeDetails DeserializeAndAssignValue(Expression subject, ObjectDetails objectDetails)
-        {
-            var typeDetails = this.DeserializeValue(objectDetails);
+            var typeDetails = this.DeserializeValue(objectPath);
             return new TypeDetails(typeDetails.HasFixedSize, typeDetails.MinSize, Expression.Assign(subject, typeDetails.OperationExpression));
         }
 
-        private TypeDetails DeserializeValue(ObjectDetails objectDetails)
+        private TypeDetails DeserializeValue(IImmutableStack<ObjectDetails> objectPath)
         {
+            var objectDetails = objectPath.Peek();
             if (objectDetails.IsEnumerable)
-                return this.DeserializeEnumerable(objectDetails);
+                return this.DeserializeEnumerable(objectPath);
 
             if (PrimitiveTypes.Types.ContainsKey(objectDetails.Type))
                 return this.DeserializePrimitive(objectDetails);
@@ -88,13 +72,15 @@ namespace BitPacker
                 return this.DeserializeEnum(objectDetails);
 
             if (objectDetails.IsCustomType)
-                return this.DeserializeCustomType(objectDetails);
+                return this.DeserializeCustomType(objectPath);
 
             throw new Exception(String.Format("Don't know how to deserialize type {0}", objectDetails.Type.Name));
         }
 
-        public TypeDetails DeserializeCustomType(ObjectDetails objectDetails)
+        public TypeDetails DeserializeCustomType(IImmutableStack<ObjectDetails> objectPath)
         {
+            var objectDetails = objectPath.Peek();
+
             // If it's not marked with our attribute, we're not deserializing it
             if (!objectDetails.IsCustomType)
                 return null;
@@ -104,7 +90,11 @@ namespace BitPacker
 
             blockMembers.Add(Expression.Assign(subject, Expression.New(objectDetails.Type)));
 
-            var typeDetails = objectDetails.Properties.Select(property => this.DeserializeAndAssignValue(property.AccessExpression(subject), property)).ToArray();
+            var typeDetails = objectDetails.Properties.Select(property =>
+            {
+                var specificObjectPath = objectPath.Push(property);
+                return this.DeserializeAndAssignValue(property.AccessExpression(subject), specificObjectPath);
+            }).ToArray();
 
             // If they claim to be able to serialize themselves, let them
             if (typeof(IDeserialize).IsAssignableFrom(objectDetails.Type))
@@ -149,19 +139,27 @@ namespace BitPacker
             return new TypeDetails(typeDetails.HasFixedSize, typeDetails.MinSize, value);
         }
 
-        private TypeDetails DeserializeEnumerable(ObjectDetails objectDetails)
+        private TypeDetails DeserializeEnumerable(IImmutableStack<ObjectDetails> objectPath)
         {
+            var objectDetails = objectPath.Peek();
+
             bool hasFixedLength = objectDetails.EnumerableLength > 0;
 
             var subject = Expression.Parameter(objectDetails.Type, String.Format("enumerableOf{0}", objectDetails.ElementType.Name));
             Expression arrayInit;
             Expression arrayLength;
 
-            // Is it variable legnth
+            // Is it variable legnth?
             if (objectDetails.LengthKey != null)
             {
-                ObjectDetails lengthField;
-                if (!this.lengthFields.TryGetValue(objectDetails.LengthKey, out lengthField))
+                PropertyObjectDetails lengthField = null;
+                foreach (var obj in objectPath)
+                {
+                    if (obj.IsCustomType && obj.LengthFields.TryGetValue(objectDetails.LengthKey, out lengthField))
+                        break;
+                }
+
+                if (lengthField == null)
                     throw new Exception(String.Format("Could not find integer field with Length Key {0}", objectDetails.LengthKey));
 
                 arrayLength = lengthField.Value;
@@ -184,7 +182,7 @@ namespace BitPacker
                 throw new Exception("Unknown length for array");
             }
 
-            var typeDetails = this.DeserializeValue(objectDetails.ElementObjectDetails);
+            var typeDetails = this.DeserializeValue(objectPath.Push(objectDetails.ElementObjectDetails));
 
 
             var loopVar = Expression.Variable(typeof(int), "loopVar");

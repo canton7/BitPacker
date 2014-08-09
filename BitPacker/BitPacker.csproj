@@ -42,6 +42,7 @@
     <Compile Include="BitPackerDeserializer.cs" />
     <Compile Include="DeserializerExpressionBuilder.cs" />
     <Compile Include="IDeserialize.cs" />
+    <Compile Include="ImmutableStack.cs" />
     <Compile Include="SerializerExpressionBuilder.cs" />
     <Compile Include="BitPackerObjectAttribute.cs" />
     <Compile Include="BitPackerSerializer.cs" />

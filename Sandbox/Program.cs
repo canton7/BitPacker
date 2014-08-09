@@ -21,12 +21,16 @@ namespace Sandbox
                 //{
                 //    FloatField = 5.0f
                 //},
-                ArrayField = new List<TestSubClass>()
+                //ArrayField = new List<TestSubClass>()
+                //{
+                //    new TestSubClass()
+                //},
+                ////ArrayField = new List<int>() { 1, 2, 3 },
+                //Enum = Test.Bar,
+                SubClass = new TestSubClass()
                 {
-                    new TestSubClass()
-                },
-                //ArrayField = new List<int>() { 1, 2, 3 },
-                Enum = Test.Bar,
+                    Array = new[] { 1, 2, 3 },
+                }
             });
 
             var deserializer = new BitPackerDeserializer(typeof(TestClass));
@@ -40,26 +44,32 @@ namespace Sandbox
     [BitPackerObject]
     public class TestClass
     {
-     //   [BitPackerMember]
-     //   public TestSubClass SubClass { get; set; }
+        [BitPackerMember(LengthKey = "key")]
+        public int Length { get; set; }
 
-        [BitPackerMember(Length=3)]
-        public List<TestSubClass> ArrayField { get; set; }
+        [BitPackerMember]
+        public TestSubClass SubClass { get; set; }
 
-        [BitPackerMember(EnumType=typeof(long))]
-        public Test Enum { get; set; }
+        //[BitPackerMember(Length=3)]
+        //public List<TestSubClass> ArrayField { get; set; }
+
+        //[BitPackerMember(EnumType=typeof(long))]
+        //public Test Enum { get; set; }
     }
 
     [BitPackerObject]
     public class TestSubClass
     {
-        [BitPackerMember]
-        public float FloatField { get; set; }
+        //[BitPackerMember]
+        //public float FloatField { get; set; }
 
-        [BitPackerMember]
-        public int IntField { get; set; }
+        //[BitPackerMember]
+        //public int IntField { get; set; }
 
-        [BitPackerMember]
-        public int AnotherIntField { get; set; }
+        //[BitPackerMember]
+        //public int AnotherIntField { get; set; }
+
+        [BitPackerMember(LengthKey = "key")]
+        public int[] Array { get; set; }
     }
 }

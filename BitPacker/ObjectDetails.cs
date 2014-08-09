@@ -14,7 +14,8 @@ namespace BitPacker
         protected readonly Type type;
         protected readonly Expression value;
         protected Endianness? endianness;
-        protected List<PropertyObjectDetails> properties;
+        protected IReadOnlyList<PropertyObjectDetails> properties;
+        protected IReadOnlyDictionary<string, PropertyObjectDetails> lengthFields;
         protected readonly BitPackerMemberAttribute propertyAttribute;
         protected readonly EnumerableElementObjectDetails elementObjectDetails;
         protected readonly EnumObjectDetails enumEquivalentObjectDetails;
@@ -42,6 +43,16 @@ namespace BitPacker
         public IReadOnlyList<PropertyObjectDetails> Properties
         {
             get { return this.properties; }
+        }
+
+        public IReadOnlyDictionary<string, PropertyObjectDetails> LengthFields
+        {
+            get
+            {
+                if (!this.IsCustomType)
+                    throw new InvalidOperationException("Not custom type");
+                return this.lengthFields;
+            }
         }
 
         public bool IsCustomType
@@ -147,12 +158,16 @@ namespace BitPacker
                                   orderby propertyAttribute.Order
                                   select new PropertyObjectDetails(property, Expression.MakeMemberAccess(this.value, property), propertyAttribute, this.Endianness)).ToList();
 
+                // TODO: Support length fields which aren't marked as members
+                this.lengthFields = properties.Where(x => x.LengthKey != null && PrimitiveTypes.IsPrimitive(x.Type) && PrimitiveTypes.Types[x.Type].IsIntegral)
+                    .ToDictionary(x => x.LengthKey, x => x);
+
                 foreach (var property in properties)
                 {
                     property.Discover();
                 }
 
-                this.properties = properties;
+                this.properties = properties.AsReadOnly();
             }
 
             if (this.elementObjectDetails != null)
