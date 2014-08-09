@@ -11,7 +11,7 @@ namespace BitPacker
     {
         private readonly Expression reader;
         private readonly Type objectType;
-        private Dictionary<string, PropertyObjectDetails> lengthFields;
+        private Dictionary<string, ObjectDetails> lengthFields;
 
         public DeserializerExpressionBuilder(Expression reader, Type objectType)
         {
@@ -31,7 +31,7 @@ namespace BitPacker
             // First, we need to make sure it's fully constructed
             var blockMembers = new List<Expression>();
 
-            var deserialized = this.DeserializeAndAssignValue(subject, objectDetails, subject);
+            var deserialized = this.DeserializeAndAssignValue(subject, objectDetails);
             blockMembers.Add(deserialized.OperationExpression);
             // Set return value
             blockMembers.Add(subject);
@@ -55,7 +55,7 @@ namespace BitPacker
         //    return blockMembers.Any() ? Expression.Block(blockMembers) : null;
         //}
 
-        private Dictionary<string, PropertyObjectDetails> FindLengthFields(ObjectDetails objectDetails)
+        private Dictionary<string, ObjectDetails> FindLengthFields(ObjectDetails objectDetails)
         {
             var groups = objectDetails.RecursiveFlatProperties()
                 .Where(x => x.LengthKey != null && PrimitiveTypes.IsPrimitive(x.Type) && PrimitiveTypes.Types[x.Type].IsIntegral)
@@ -70,16 +70,16 @@ namespace BitPacker
             return groups.ToDictionary(x => x.Key, x => x.First());
         }
 
-        private TypeDetails DeserializeAndAssignValue(Expression subjecToAssignTo, ObjectDetails objectDetails, Expression referenceObject)
+        private TypeDetails DeserializeAndAssignValue(Expression subject, ObjectDetails objectDetails)
         {
-            var typeDetails = this.DeserializeValue(objectDetails, referenceObject);
-            return new TypeDetails(typeDetails.HasFixedSize, typeDetails.MinSize, Expression.Assign(subjecToAssignTo, typeDetails.OperationExpression));
+            var typeDetails = this.DeserializeValue(objectDetails);
+            return new TypeDetails(typeDetails.HasFixedSize, typeDetails.MinSize, Expression.Assign(subject, typeDetails.OperationExpression));
         }
 
-        private TypeDetails DeserializeValue(ObjectDetails objectDetails, Expression referenceObject)
+        private TypeDetails DeserializeValue(ObjectDetails objectDetails)
         {
             if (objectDetails.IsEnumerable)
-                return this.DeserializeEnumerable(objectDetails, referenceObject);
+                return this.DeserializeEnumerable(objectDetails);
 
             if (PrimitiveTypes.Types.ContainsKey(objectDetails.Type))
                 return this.DeserializePrimitive(objectDetails);
@@ -100,11 +100,11 @@ namespace BitPacker
                 return null;
 
             var blockMembers = new List<Expression>();
-            var subject = Expression.Variable(objectDetails.Type, "customSubject");
+            var subject = Expression.Variable(objectDetails.Type, "subject");
 
             blockMembers.Add(Expression.Assign(subject, Expression.New(objectDetails.Type)));
 
-            var typeDetails = objectDetails.Properties.Select(property => this.DeserializeAndAssignValue(property.AccessExpression(subject), property, subject)).ToArray();
+            var typeDetails = objectDetails.Properties.Select(property => this.DeserializeAndAssignValue(property.AccessExpression(subject), property)).ToArray();
 
             // If they claim to be able to serialize themselves, let them
             if (typeof(IDeserialize).IsAssignableFrom(objectDetails.Type))
@@ -149,22 +149,22 @@ namespace BitPacker
             return new TypeDetails(typeDetails.HasFixedSize, typeDetails.MinSize, value);
         }
 
-        private TypeDetails DeserializeEnumerable(ObjectDetails objectDetails, Expression referenceObject)
+        private TypeDetails DeserializeEnumerable(ObjectDetails objectDetails)
         {
             bool hasFixedLength = objectDetails.EnumerableLength > 0;
 
-            var subject = Expression.Parameter(objectDetails.Type, "enumerableSubject");
+            var subject = Expression.Parameter(objectDetails.Type, "subject");
             Expression arrayInit;
             Expression arrayLength;
 
             // Is it variable legnth
             if (objectDetails.LengthKey != null)
             {
-                PropertyObjectDetails lengthField;
+                ObjectDetails lengthField;
                 if (!this.lengthFields.TryGetValue(objectDetails.LengthKey, out lengthField))
                     throw new Exception(String.Format("Could not find integer field with Length Key {0}", objectDetails.LengthKey));
 
-                arrayLength = lengthField.AccessExpression(referenceObject);
+                arrayLength = lengthField.Value;
                 arrayInit = Expression.Assign(
                     subject,
                     CreateListOrArray(objectDetails, arrayLength)
@@ -177,14 +177,14 @@ namespace BitPacker
                     subject,
                     CreateListOrArray(objectDetails, arrayLength)
                 );
-
+                
             }
             else
             {
                 throw new Exception("Unknown length for array");
             }
 
-            var typeDetails = this.DeserializeValue(objectDetails.ElementObjectDetails, subject);
+            var typeDetails = this.DeserializeValue(objectDetails.ElementObjectDetails);
 
 
             var loopVar = Expression.Variable(typeof(int), "loopVar");
