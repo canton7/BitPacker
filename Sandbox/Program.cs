@@ -27,16 +27,19 @@ namespace Sandbox
                 //},
                 ////ArrayField = new List<int>() { 1, 2, 3 },
                 //Enum = Test.Bar,
-                SubClass = new TestSubClass()
-                {
-                    Array = new[] { new TestSubSubClass() { IntField = 4 }, new TestSubSubClass() { IntField = 5} }
-                },
-                Enum = Test.Bar,
+                Array = new[] {  new TestSubClass() }
             });
 
             var deserializer = new BitPackerDeserializer(typeof(TestClass));
 
-            var deserialized = deserializer.Deserialize(new BinaryReader(new MemoryStream(buffer)));
+            try
+            { 
+                var deserialized = deserializer.Deserialize(new BinaryReader(new MemoryStream(buffer)));
+            }
+            catch (Exception)
+            {
+
+            }
         }
     }
 
@@ -45,17 +48,8 @@ namespace Sandbox
     [BitPackerObject]
     public class TestClass
     {
-        [BitPackerArrayLength(LengthKey = "key")]
-        public int Length { get; set; }
-
-        [BitPackerMember]
-        public TestSubClass SubClass { get; set; }
-
-        //[BitPackerMember(Length=3)]
-        //public List<TestSubClass> ArrayField { get; set; }
-
-        [BitPackerMember(EnumType = typeof(int))]
-        public Test Enum { get; set; }
+        [BitPackerArray(Length = 1)]
+        public TestSubClass[] Array { get; set; }
     }
 
     [BitPackerObject]
@@ -70,14 +64,22 @@ namespace Sandbox
         //[BitPackerMember]
         //public int AnotherIntField { get; set; }
 
-        [BitPackerArray(LengthKey = "key", Length = 3)]
-        public TestSubSubClass[] Array { get; set; }
+        [BitPackerMember]
+        public int IntField
+        {
+            get { return 0; }
+            set { throw new InvalidOperationException(); }
+        }
     }
 
     [BitPackerObject]
     public class TestSubSubClass
     {
         [BitPackerMember]
-        public int IntField { get; set; }
+        public int IntField
+        {
+            get { return 0; }
+            set { throw new InvalidOperationException(); }
+        }
     }
 }

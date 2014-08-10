@@ -56,7 +56,8 @@ namespace BitPacker
         private TypeDetails DeserializeAndAssignValue(Expression subject, DeserializationContext context)
         {
             var typeDetails = this.DeserializeValue(context);
-            return new TypeDetails(typeDetails.HasFixedSize, typeDetails.MinSize, Expression.Assign(subject, typeDetails.OperationExpression));
+            var wrappedAssignment = ExpressionHelpers.TryTranslate(Expression.Assign(subject, typeDetails.OperationExpression), context.GetMemberPath());
+            return new TypeDetails(typeDetails.HasFixedSize, typeDetails.MinSize, wrappedAssignment);
         }
 
         private TypeDetails DeserializeValue(DeserializationContext context)
@@ -88,11 +89,14 @@ namespace BitPacker
             var blockMembers = new List<Expression>();
             var subject = Expression.Variable(objectDetails.Type, objectDetails.Type.Name);
 
-            blockMembers.Add(Expression.Assign(subject, Expression.New(objectDetails.Type)));
+            // TODO Raise a different exception here, to show that it's the constructing that's failed
+            var createAndAssign = Expression.Assign(subject, Expression.New(objectDetails.Type));
+            var wrappedCreateAndAssign = ExpressionHelpers.TryTranslate(createAndAssign, context.GetMemberPath());
+            blockMembers.Add(wrappedCreateAndAssign);
 
             var typeDetails = objectDetails.Properties.Select(property =>
             {
-                var newContext = context.Push(property, subject);
+                var newContext = context.Push(property, subject, property.PropertyInfo.Name);
                 return this.DeserializeAndAssignValue(property.AccessExpression(subject), newContext);
             }).ToArray();
 
@@ -182,7 +186,7 @@ namespace BitPacker
                 throw new Exception("Unknown length for array");
             }
 
-            var typeDetails = this.DeserializeValue(context.Push(objectDetails.ElementObjectDetails, subject));
+            var typeDetails = this.DeserializeValue(context.Push(objectDetails.ElementObjectDetails, subject, "[]"));
 
             var loopVar = Expression.Variable(typeof(int), "loopVar");
             var forLoop = ExpressionHelpers.For(

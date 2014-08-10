@@ -18,7 +18,7 @@ namespace BitPacker
         Expression DeserializeExpression(Expression reader);
     }
 
-    internal class PrimitiveTypeInfo<T> :IPrimitiveTypeInfo
+    internal class PrimitiveTypeInfo<T> : IPrimitiveTypeInfo
     {
         private readonly Type type;
         private readonly int size;

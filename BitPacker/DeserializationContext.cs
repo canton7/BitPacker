@@ -11,11 +11,13 @@ namespace BitPacker
     {
         public ObjectDetails ObjectDetails { get; private set; }
         public Expression Subject { get; private set; }
+        public string MemberName { get; private set; }
 
-        public DeserializationStepContext(ObjectDetails objectDetails, Expression subject)
+        public DeserializationStepContext(ObjectDetails objectDetails, Expression subject, string memberName)
         {
             this.ObjectDetails = objectDetails;
             this.Subject = subject;
+            this.MemberName = memberName;
         }
     }
 
@@ -40,9 +42,9 @@ namespace BitPacker
             this.stack = stack;
         }
 
-        public DeserializationContext Push(ObjectDetails objectDetails, Expression subject)
+        public DeserializationContext Push(ObjectDetails objectDetails, Expression subject, string memberName)
         {
-            return new DeserializationContext(objectDetails, this.stack.Push(new DeserializationStepContext(this.ObjectDetails, subject)));
+            return new DeserializationContext(objectDetails, this.stack.Push(new DeserializationStepContext(this.ObjectDetails, subject, memberName)));
         }
 
         public bool TryFindLengthKey(string key, out PropertyObjectDetails objectDetails, out Expression subject)
@@ -62,6 +64,11 @@ namespace BitPacker
             objectDetails = null;
             subject = null;
             return false;
+        }
+
+        public List<string> GetMemberPath()
+        {
+            return this.stack.Select(x => x.MemberName).Reverse().ToList();
         }
     }
 }

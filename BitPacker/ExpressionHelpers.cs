@@ -69,5 +69,34 @@ namespace BitPacker
             //var method = typeof(Enumerable).GetMethods().Single(x => x.Name == "Count" && x.GetParameters().Length == 1);
             return Expression.Call(typeof(Enumerable), "Count", new[] { elementType }, collection);
         }
+
+        public static Expression TryTranslate(Expression block, List<string> memberPath)
+        {
+            var e = Expression.Parameter(typeof(Exception), "e");
+            var ctor = typeof(BitPackerTranslationException).GetConstructors()[0];
+            var exception = Expression.New(ctor, Expression.Constant(memberPath), e);
+
+            var eToRethrow = Expression.Parameter(typeof(BitPackerTranslationException), "e");
+
+            return Expression.TryCatch(
+                block,
+                Expression.MakeCatchBlock(
+                    typeof(BitPackerTranslationException),
+                    eToRethrow,
+                    Expression.Block(
+                        Expression.Throw(eToRethrow),
+                        Expression.Default(block.Type)
+                    ),
+                    null
+                ),
+                Expression.Catch(
+                    e,
+                    Expression.Block(
+                        Expression.Throw(exception),
+                        Expression.Default(block.Type)
+                    )
+                )
+            );
+        }
     }
 }
