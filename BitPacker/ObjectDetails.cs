@@ -16,6 +16,8 @@ namespace BitPacker
         protected IReadOnlyList<PropertyObjectDetails> properties;
         protected IReadOnlyDictionary<string, PropertyObjectDetails> lengthFields;
         protected readonly BitPackerMemberAttribute propertyAttribute;
+        protected readonly string lengthKey;
+        protected readonly int length;
         protected readonly EnumerableElementObjectDetails elementObjectDetails;
         protected readonly EnumObjectDetails enumEquivalentObjectDetails;
 
@@ -31,7 +33,7 @@ namespace BitPacker
 
         public string LengthKey
         {
-            get { return this.propertyAttribute.LengthKey; }
+            get { return this.lengthKey; }
         }
         
         public IReadOnlyList<PropertyObjectDetails> Properties
@@ -81,7 +83,7 @@ namespace BitPacker
 
         public int EnumerableLength
         {
-            get { return this.propertyAttribute.Length; }
+            get { return this.length; }
         }
 
         public bool IsEnum
@@ -99,6 +101,11 @@ namespace BitPacker
             }
         }
 
+        public bool Serialize
+        {
+            get { return this.propertyAttribute.SerializeInternal; }
+        }
+
         public EnumObjectDetails EnumEquivalentObjectDetails
         {
             get
@@ -109,19 +116,40 @@ namespace BitPacker
             }
         }
 
-        public ObjectDetails(Type type, BitPackerMemberAttribute propertyAttribute, Endianness? endianness = null)
+        public ObjectDetails(Type type, BitPackerMemberAttribute propertyAttribute, Endianness? endianness = null, bool isAttributeCascaded = false)
         {
             this.type = type;
             this.endianness = endianness;
-            this.propertyAttribute = propertyAttribute;
-
-            if (this.IsEnumerable)
-                this.elementObjectDetails = new EnumerableElementObjectDetails(this.ElementType, this.propertyAttribute, this.Endianness);
+            this.propertyAttribute = propertyAttribute;  
 
             if (this.IsEnum)
             {
                 this.enumEquivalentObjectDetails = new EnumObjectDetails(this.EnumEquivalentType, this.propertyAttribute, this.Endianness);
                 this.CheckEnum();
+            }
+
+            var arrayAttribute = propertyAttribute as BitPackerArrayAttribute;
+            if (arrayAttribute != null && !isAttributeCascaded)
+            {
+                if (!this.IsEnumerable)
+                    throw new Exception("BitPackerArray can only be applied to properties which are arrays or IEnumerable<T>");
+
+                this.elementObjectDetails = new EnumerableElementObjectDetails(this.ElementType, this.propertyAttribute, this.Endianness);
+                this.length = arrayAttribute.Length;
+                this.lengthKey = arrayAttribute.LengthKey;
+            }
+            else if (this.IsEnumerable)
+            {
+                throw new Exception("Arrays or IEnumerable<T> properties must be decorated with BitPackerArray, not BitPackerMember");
+            }
+
+            var arrayLengthAttribute = propertyAttribute as BitPackerArrayLengthAttribute;
+            if (arrayLengthAttribute != null)
+            {
+                if (!PrimitiveTypes.IsPrimitive(this.Type) || !PrimitiveTypes.Types[this.Type].IsIntegral)
+                    throw new Exception("Properties decorated with BitPackerArrayLength must be integer");
+
+                this.lengthKey = arrayLengthAttribute.LengthKey;
             }
         }
 
@@ -145,15 +173,15 @@ namespace BitPacker
             {
                 this.endianness = this.endianness ?? attribute.Endianness;
 
-                var properties = (from property in this.type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                var allProperties = (from property in this.type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
                                   let propertyAttribute = property.GetCustomAttribute<BitPackerMemberAttribute>(false)
                                   where propertyAttribute != null
                                   orderby propertyAttribute.Order
                                   select new PropertyObjectDetails(property, propertyAttribute, this.Endianness)).ToList();
 
-                // TODO: Support length fields which aren't marked as members
-                this.lengthFields = properties.Where(x => x.LengthKey != null && PrimitiveTypes.IsPrimitive(x.Type) && PrimitiveTypes.Types[x.Type].IsIntegral)
-                    .ToDictionary(x => x.LengthKey, x => x);
+                var properties = allProperties.Where(x => x.propertyAttribute.SerializeInternal).ToList();
+
+                this.lengthFields = allProperties.Where(x => x.propertyAttribute is BitPackerArrayLengthAttribute).ToDictionary(x => x.LengthKey, x => x);
 
                 foreach (var property in properties)
                 {
@@ -184,17 +212,17 @@ namespace BitPacker
 
     internal class PropertyObjectDetails : ObjectDetails
     {
-        private readonly PropertyInfo propertyInfo;
+        public PropertyInfo PropertyInfo { get; private set; }
 
         public PropertyObjectDetails(PropertyInfo propertyInfo, BitPackerMemberAttribute propertyAttribute, Endianness? endianness = null)
             : base(propertyInfo.PropertyType, propertyAttribute, endianness)
         {
-            this.propertyInfo = propertyInfo;
+            this.PropertyInfo = propertyInfo;
         }
 
         public Expression AccessExpression(Expression parent)
         {
-            return Expression.MakeMemberAccess(parent, this.propertyInfo);
+            return Expression.MakeMemberAccess(parent, this.PropertyInfo);
         }
     }
 
@@ -210,7 +238,7 @@ namespace BitPacker
     internal class EnumerableElementObjectDetails : ObjectDetails
     {
         public EnumerableElementObjectDetails(Type type, BitPackerMemberAttribute propertyAttribute, Endianness? endianness = null)
-            : base(type, propertyAttribute, endianness)
+            : base(type, propertyAttribute, endianness, true)
         { }
 
         public Expression AssignExpression(ParameterExpression parent, Expression index, Expression value)

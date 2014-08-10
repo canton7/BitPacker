@@ -8,12 +8,11 @@ using System.Threading.Tasks;
 namespace BitPacker
 {
     [AttributeUsage(AttributeTargets.Property, Inherited = false, AllowMultiple = false)]
-    public sealed class BitPackerMemberAttribute : Attribute
+    public class BitPackerMemberAttribute : Attribute
     {
         public int Order { get; set; }
-        public int Length { get; set; }
         public Type EnumType { get; set; }
-        public string LengthKey { get; set; }
+        internal bool SerializeInternal { get; set; }
 
         internal Endianness? NullableEndianness;
         public Endianness Endianness
@@ -25,6 +24,33 @@ namespace BitPacker
         public BitPackerMemberAttribute([CallerLineNumber] int order = 0)
         {
             this.Order = order;
+            this.SerializeInternal = true;
         }
+    }
+
+    [AttributeUsage(AttributeTargets.Property, Inherited = false, AllowMultiple = true)]
+    public sealed class BitPackerArrayAttribute : BitPackerMemberAttribute
+    {
+        public string LengthKey { get; set; }
+        public int Length { get; set; }
+
+        public BitPackerArrayAttribute([CallerLineNumber] int order = 0)
+            : base(order)
+        { }
+    }
+
+    [AttributeUsage(AttributeTargets.Property, Inherited = false, AllowMultiple = true)]
+    public sealed class BitPackerArrayLengthAttribute : BitPackerMemberAttribute
+    {
+        public string LengthKey { get; set; }
+        public bool Serialize
+        {
+            get { return this.SerializeInternal; }
+            set { this.SerializeInternal = value; }
+        }
+
+        public BitPackerArrayLengthAttribute([CallerLineNumber] int order = 0)
+            : base(order)
+        { }
     }
 }

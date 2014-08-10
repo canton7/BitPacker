@@ -38,29 +38,44 @@ namespace BitPacker
 
         private Expression HandleVariableLengthArrays(Expression subject, ObjectDetails objectDetails)
         {
-            // Find all properties which share the same LengthKey
-            var groups = objectDetails.RecursiveFlatPropertyAccess(subject).GroupBy(x => x.ObjectDetails.LengthKey).ToArray();
+            var arrays = objectDetails.RecursiveFlatPropertyAccess(subject).Where(x => x.ObjectDetails.IsEnumerable && x.ObjectDetails.LengthKey != null);
+            var lengthFields = objectDetails.LengthFields
+                .Select(x => new PropertyObjectDetailsWithAccess(x.Value, x.Value.AccessExpression(subject)))
+                .Concat(objectDetails.RecursiveFlatPropertyAccess(subject)
+                    .Where(x => x.ObjectDetails.IsCustomType)
+                    .SelectMany(x => x.ObjectDetails.LengthFields.Select(y => new PropertyObjectDetailsWithAccess(y.Value, x.Value))));
+
+            var allKeys = arrays.Select(x => x.ObjectDetails.LengthKey).Concat(lengthFields.Select(x => x.ObjectDetails.LengthKey)).Distinct();
+
+            var groups = allKeys.Select(x => new
+            {
+                Key = x,
+                Arrays = arrays.Where(y => y.ObjectDetails.LengthKey == x).ToArray(),
+                LengthFields =  lengthFields.Where(y => y.ObjectDetails.LengthKey == x).ToArray(),
+            });
 
             // For each, synthesize an assign to the integral field, assigning the length of the array field
-            var blockMembers = groups.Where(x => x.Key != null).Select(group =>
+            var blockMembers = groups.Select(group =>
             {
-                var arrays = group.Where(x => x.ObjectDetails.IsEnumerable).ToArray();
-                var keys = group.Where(x => PrimitiveTypes.IsPrimitive(x.ObjectDetails.Type) && PrimitiveTypes.Types[x.ObjectDetails.Type].IsIntegral).ToArray();
-
-                if (arrays.Length != 1)
+                if (group.Arrays.Length != 1)
                     throw new Exception(String.Format("Found zero, or more than one arrays fields for Length Key {0}", group.Key));
 
-                if (keys.Length != 1)
+                if (group.LengthFields.Length != 1)
                     throw new Exception(String.Format("Found zero, or more than one integral fields for Length Key {0}", group.Key));
 
+                if (!group.LengthFields[0].ObjectDetails.Serialize)
+                    return null;
+
                 return Expression.Assign(
-                    keys[0].Value,
+                    group.LengthFields[0].Value,
                     ExpressionHelpers.LengthOfEnumerable(
-                        arrays[0].Value,
-                        arrays[0].ObjectDetails.ElementType
+                        group.Arrays[0].Value,
+                        group.Arrays[0].ObjectDetails.ElementType
                     )
                 );
             });
+
+            blockMembers = blockMembers.Where(x => x != null);
 
             return blockMembers.Any() ? Expression.Block(blockMembers) : null;
         }

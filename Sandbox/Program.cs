@@ -44,7 +44,7 @@ namespace Sandbox
     [BitPackerObject]
     public class TestClass
     {
-        [BitPackerMember(LengthKey = "key")]
+        [BitPackerArrayLength(LengthKey = "key", Serialize = false)]
         public int Length { get; set; }
 
         [BitPackerMember]
@@ -69,7 +69,7 @@ namespace Sandbox
         //[BitPackerMember]
         //public int AnotherIntField { get; set; }
 
-        [BitPackerMember(LengthKey = "key")]
+        [BitPackerArray(LengthKey = "key")]
         public TestSubSubClass[] Array { get; set; }
     }
 
