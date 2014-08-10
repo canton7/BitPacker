@@ -30,7 +30,8 @@ namespace Sandbox
                 SubClass = new TestSubClass()
                 {
                     Array = new[] { new TestSubSubClass() { IntField = 4 }, new TestSubSubClass() { IntField = 5} }
-                    }
+                },
+                Enum = Test.Bar,
             });
 
             var deserializer = new BitPackerDeserializer(typeof(TestClass));
@@ -44,7 +45,7 @@ namespace Sandbox
     [BitPackerObject]
     public class TestClass
     {
-        [BitPackerArrayLength(LengthKey = "key", Serialize = false)]
+        [BitPackerArrayLength(LengthKey = "key")]
         public int Length { get; set; }
 
         [BitPackerMember]
@@ -53,8 +54,8 @@ namespace Sandbox
         //[BitPackerMember(Length=3)]
         //public List<TestSubClass> ArrayField { get; set; }
 
-        //[BitPackerMember(EnumType=typeof(long))]
-        //public Test Enum { get; set; }
+        [BitPackerMember(EnumType = typeof(int))]
+        public Test Enum { get; set; }
     }
 
     [BitPackerObject]
@@ -69,7 +70,7 @@ namespace Sandbox
         //[BitPackerMember]
         //public int AnotherIntField { get; set; }
 
-        [BitPackerArray(LengthKey = "key")]
+        [BitPackerArray(LengthKey = "key", Length = 3)]
         public TestSubSubClass[] Array { get; set; }
     }
 

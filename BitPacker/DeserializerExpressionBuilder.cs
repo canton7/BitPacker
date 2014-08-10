@@ -148,6 +148,7 @@ namespace BitPacker
             var subject = Expression.Parameter(objectDetails.Type, String.Format("enumerableOf{0}", objectDetails.ElementType.Name));
             Expression arrayInit;
             Expression arrayLength;
+            Expression arrayPaddingLength = null;
 
             // Is it variable legnth?
             if (objectDetails.LengthKey != null)
@@ -162,6 +163,10 @@ namespace BitPacker
                     subject,
                     CreateListOrArray(objectDetails, arrayLength)
                 );
+
+                // If it has both fixed and variable-length attributes, then there's padding at the end of it
+                if (hasFixedLength)
+                    arrayPaddingLength = Expression.Subtract(Expression.Constant(objectDetails.EnumerableLength), arrayLength);
             }
             else if (hasFixedLength)
             {
@@ -179,7 +184,6 @@ namespace BitPacker
 
             var typeDetails = this.DeserializeValue(context.Push(objectDetails.ElementObjectDetails, subject));
 
-
             var loopVar = Expression.Variable(typeof(int), "loopVar");
             var forLoop = ExpressionHelpers.For(
                 loopVar,
@@ -189,9 +193,23 @@ namespace BitPacker
                 objectDetails.ElementObjectDetails.AssignExpression(subject, loopVar, typeDetails.OperationExpression)
             );
 
+            Expression paddingLoop = Expression.Empty();
+            if (arrayPaddingLength != null)
+            {
+                var paddingLoopVar = Expression.Variable(typeof(int), "loopVar");
+                paddingLoop = ExpressionHelpers.For(
+                    paddingLoopVar,
+                    Expression.Constant(0),
+                    Expression.LessThan(paddingLoopVar, arrayPaddingLength),
+                    Expression.PostIncrementAssign(paddingLoopVar),
+                    typeDetails.OperationExpression
+                );
+            }
+
             var block = Expression.Block(new[] { subject },
                 arrayInit,
                 forLoop,
+                paddingLoop,
                 subject
             );
 
