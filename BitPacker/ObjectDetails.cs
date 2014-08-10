@@ -12,7 +12,6 @@ namespace BitPacker
     internal class ObjectDetails
     {
         protected readonly Type type;
-        protected readonly Expression value;
         protected Endianness? endianness;
         protected IReadOnlyList<PropertyObjectDetails> properties;
         protected IReadOnlyDictionary<string, PropertyObjectDetails> lengthFields;
@@ -23,11 +22,6 @@ namespace BitPacker
         public Type Type
         {
             get { return this.type; }
-        }
-
-        public Expression Value
-        {
-            get { return this.value; }
         }
 
         public Endianness Endianness
@@ -115,19 +109,18 @@ namespace BitPacker
             }
         }
 
-        public ObjectDetails(Type type, Expression value, BitPackerMemberAttribute propertyAttribute, Endianness? endianness = null)
+        public ObjectDetails(Type type, BitPackerMemberAttribute propertyAttribute, Endianness? endianness = null)
         {
             this.type = type;
-            this.value = value;
             this.endianness = endianness;
             this.propertyAttribute = propertyAttribute;
 
             if (this.IsEnumerable)
-                this.elementObjectDetails = new EnumerableElementObjectDetails(this.ElementType, Expression.Variable(this.ElementType, "elementVar"), this.propertyAttribute, this.Endianness);
+                this.elementObjectDetails = new EnumerableElementObjectDetails(this.ElementType, this.propertyAttribute, this.Endianness);
 
             if (this.IsEnum)
             {
-                this.enumEquivalentObjectDetails = new EnumObjectDetails(this.EnumEquivalentType, this.value, this.propertyAttribute, this.Endianness);
+                this.enumEquivalentObjectDetails = new EnumObjectDetails(this.EnumEquivalentType, this.propertyAttribute, this.Endianness);
                 this.CheckEnum();
             }
         }
@@ -156,7 +149,7 @@ namespace BitPacker
                                   let propertyAttribute = property.GetCustomAttribute<BitPackerMemberAttribute>(false)
                                   where propertyAttribute != null
                                   orderby propertyAttribute.Order
-                                  select new PropertyObjectDetails(property, Expression.MakeMemberAccess(this.value, property), propertyAttribute, this.Endianness)).ToList();
+                                  select new PropertyObjectDetails(property, propertyAttribute, this.Endianness)).ToList();
 
                 // TODO: Support length fields which aren't marked as members
                 this.lengthFields = properties.Where(x => x.LengthKey != null && PrimitiveTypes.IsPrimitive(x.Type) && PrimitiveTypes.Types[x.Type].IsIntegral)
@@ -177,14 +170,15 @@ namespace BitPacker
                 this.enumEquivalentObjectDetails.Discover();
         }
 
-        
-
-        public IEnumerable<ObjectDetails> RecursiveFlatProperties()
+        public IEnumerable<PropertyObjectDetailsWithAccess> RecursiveFlatPropertyAccess(Expression subject)
         {
             if (this.properties == null)
-                return new[] { this };
-            else
-                return new[] { this }.Concat(this.properties.SelectMany(x => x.RecursiveFlatProperties()));
+                return Enumerable.Empty<PropertyObjectDetailsWithAccess>();
+            return this.properties.SelectMany(x =>
+            {
+                var property = x.AccessExpression(subject);
+                return new[] { new PropertyObjectDetailsWithAccess(x, property) }.Concat(x.RecursiveFlatPropertyAccess(property));
+            });
         }
     }
 
@@ -192,8 +186,8 @@ namespace BitPacker
     {
         private readonly PropertyInfo propertyInfo;
 
-        public PropertyObjectDetails(PropertyInfo propertyInfo, Expression value, BitPackerMemberAttribute propertyAttribute, Endianness? endianness = null)
-            : base(propertyInfo.PropertyType, value, propertyAttribute, endianness)
+        public PropertyObjectDetails(PropertyInfo propertyInfo, BitPackerMemberAttribute propertyAttribute, Endianness? endianness = null)
+            : base(propertyInfo.PropertyType, propertyAttribute, endianness)
         {
             this.propertyInfo = propertyInfo;
         }
@@ -206,8 +200,8 @@ namespace BitPacker
 
     internal class EnumObjectDetails : ObjectDetails
     {
-        public EnumObjectDetails(Type type, Expression value, BitPackerMemberAttribute propertyAttribute, Endianness? endianness = null)
-            : base(type, value, propertyAttribute, endianness)
+        public EnumObjectDetails(Type type, BitPackerMemberAttribute propertyAttribute, Endianness? endianness = null)
+            : base(type, propertyAttribute, endianness)
         { }
 
         
@@ -215,8 +209,8 @@ namespace BitPacker
 
     internal class EnumerableElementObjectDetails : ObjectDetails
     {
-        public EnumerableElementObjectDetails(Type type, Expression value, BitPackerMemberAttribute propertyAttribute, Endianness? endianness = null)
-            : base(type, value, propertyAttribute, endianness)
+        public EnumerableElementObjectDetails(Type type, BitPackerMemberAttribute propertyAttribute, Endianness? endianness = null)
+            : base(type, propertyAttribute, endianness)
         { }
 
         public Expression AssignExpression(ParameterExpression parent, Expression index, Expression value)
@@ -232,6 +226,18 @@ namespace BitPacker
                 return Expression.Call(parent, method, value);
             }
             throw new InvalidOperationException("Can't assign to member of something which isn't an array or IList");
+        }
+    }
+
+    internal class PropertyObjectDetailsWithAccess
+    {
+        public PropertyObjectDetails ObjectDetails { get; private set; }
+        public Expression Value { get; private set; }
+
+        public PropertyObjectDetailsWithAccess(PropertyObjectDetails objectDetails, Expression value)
+        {
+            this.ObjectDetails = objectDetails;
+            this.Value = value;
         }
     }
 }

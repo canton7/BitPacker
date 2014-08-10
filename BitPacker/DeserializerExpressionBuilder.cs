@@ -22,7 +22,7 @@ namespace BitPacker
         {
             var subject = Expression.Parameter(this.objectType, "rootSubject");
 
-            var objectDetails = new ObjectDetails(this.objectType, subject, new BitPackerMemberAttribute());
+            var objectDetails = new ObjectDetails(this.objectType, new BitPackerMemberAttribute());
             objectDetails.Discover();
 
             // First, we need to make sure it's fully constructed

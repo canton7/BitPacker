@@ -23,7 +23,7 @@ namespace BitPacker
 
         public TypeDetails Serialize(Expression subject)
         {
-            var objectDetails = new ObjectDetails(this.objectType, subject, new BitPackerMemberAttribute());
+            var objectDetails = new ObjectDetails(this.objectType, new BitPackerMemberAttribute());
             objectDetails.Discover();
 
             var blockMembers = new List<Expression>();
@@ -39,13 +39,13 @@ namespace BitPacker
         private Expression HandleVariableLengthArrays(Expression subject, ObjectDetails objectDetails)
         {
             // Find all properties which share the same LengthKey
-            var groups = objectDetails.RecursiveFlatProperties().GroupBy(x => x.LengthKey).ToArray();
+            var groups = objectDetails.RecursiveFlatPropertyAccess(subject).GroupBy(x => x.ObjectDetails.LengthKey).ToArray();
 
             // For each, synthesize an assign to the integral field, assigning the length of the array field
             var blockMembers = groups.Where(x => x.Key != null).Select(group =>
             {
-                var arrays = group.Where(x => x.IsEnumerable).ToArray();
-                var keys = group.Where(x => PrimitiveTypes.IsPrimitive(x.Type) && PrimitiveTypes.Types[x.Type].IsIntegral).ToArray();
+                var arrays = group.Where(x => x.ObjectDetails.IsEnumerable).ToArray();
+                var keys = group.Where(x => PrimitiveTypes.IsPrimitive(x.ObjectDetails.Type) && PrimitiveTypes.Types[x.ObjectDetails.Type].IsIntegral).ToArray();
 
                 if (arrays.Length != 1)
                     throw new Exception(String.Format("Found zero, or more than one arrays fields for Length Key {0}", group.Key));
@@ -57,7 +57,7 @@ namespace BitPacker
                     keys[0].Value,
                     ExpressionHelpers.LengthOfEnumerable(
                         arrays[0].Value,
-                        arrays[0].ElementType
+                        arrays[0].ObjectDetails.ElementType
                     )
                 );
             });
