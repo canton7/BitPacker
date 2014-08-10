@@ -29,8 +29,8 @@ namespace Sandbox
                 //Enum = Test.Bar,
                 SubClass = new TestSubClass()
                 {
-                    Array = new[] { 1, 2, 3 },
-                }
+                    Array = new[] { new TestSubSubClass() { IntField = 4 }, new TestSubSubClass() { IntField = 5} }
+                    }
             });
 
             var deserializer = new BitPackerDeserializer(typeof(TestClass));
@@ -70,6 +70,13 @@ namespace Sandbox
         //public int AnotherIntField { get; set; }
 
         [BitPackerMember(LengthKey = "key")]
-        public int[] Array { get; set; }
+        public TestSubSubClass[] Array { get; set; }
+    }
+
+    [BitPackerObject]
+    public class TestSubSubClass
+    {
+        [BitPackerMember]
+        public int IntField { get; set; }
     }
 }

@@ -28,8 +28,8 @@ namespace BitPacker
             // First, we need to make sure it's fully constructed
             var blockMembers = new List<Expression>();
 
-            var objectPath = new ImmutableStack<ObjectDetails>(objectDetails);
-            var deserialized = this.DeserializeAndAssignValue(subject, objectPath);
+            var context = new DeserializationContext(objectDetails);
+            var deserialized = this.DeserializeAndAssignValue(subject, context);
             blockMembers.Add(deserialized.OperationExpression);
             // Set return value
             blockMembers.Add(subject);
@@ -53,17 +53,17 @@ namespace BitPacker
         //    return blockMembers.Any() ? Expression.Block(blockMembers) : null;
         //}
 
-        private TypeDetails DeserializeAndAssignValue(Expression subject, IImmutableStack<ObjectDetails> objectPath)
+        private TypeDetails DeserializeAndAssignValue(Expression subject, DeserializationContext context)
         {
-            var typeDetails = this.DeserializeValue(objectPath);
+            var typeDetails = this.DeserializeValue(context);
             return new TypeDetails(typeDetails.HasFixedSize, typeDetails.MinSize, Expression.Assign(subject, typeDetails.OperationExpression));
         }
 
-        private TypeDetails DeserializeValue(IImmutableStack<ObjectDetails> objectPath)
+        private TypeDetails DeserializeValue(DeserializationContext context)
         {
-            var objectDetails = objectPath.Peek();
+            var objectDetails = context.ObjectDetails;
             if (objectDetails.IsEnumerable)
-                return this.DeserializeEnumerable(objectPath);
+                return this.DeserializeEnumerable(context);
 
             if (PrimitiveTypes.Types.ContainsKey(objectDetails.Type))
                 return this.DeserializePrimitive(objectDetails);
@@ -72,14 +72,14 @@ namespace BitPacker
                 return this.DeserializeEnum(objectDetails);
 
             if (objectDetails.IsCustomType)
-                return this.DeserializeCustomType(objectPath);
+                return this.DeserializeCustomType(context);
 
             throw new Exception(String.Format("Don't know how to deserialize type {0}", objectDetails.Type.Name));
         }
 
-        public TypeDetails DeserializeCustomType(IImmutableStack<ObjectDetails> objectPath)
+        public TypeDetails DeserializeCustomType(DeserializationContext context)
         {
-            var objectDetails = objectPath.Peek();
+            var objectDetails = context.ObjectDetails;
 
             // If it's not marked with our attribute, we're not deserializing it
             if (!objectDetails.IsCustomType)
@@ -92,8 +92,8 @@ namespace BitPacker
 
             var typeDetails = objectDetails.Properties.Select(property =>
             {
-                var specificObjectPath = objectPath.Push(property);
-                return this.DeserializeAndAssignValue(property.AccessExpression(subject), specificObjectPath);
+                var newContext = context.Push(property, subject);
+                return this.DeserializeAndAssignValue(property.AccessExpression(subject), newContext);
             }).ToArray();
 
             // If they claim to be able to serialize themselves, let them
@@ -139,9 +139,9 @@ namespace BitPacker
             return new TypeDetails(typeDetails.HasFixedSize, typeDetails.MinSize, value);
         }
 
-        private TypeDetails DeserializeEnumerable(IImmutableStack<ObjectDetails> objectPath)
+        private TypeDetails DeserializeEnumerable(DeserializationContext context)
         {
-            var objectDetails = objectPath.Peek();
+            var objectDetails = context.ObjectDetails;
 
             bool hasFixedLength = objectDetails.EnumerableLength > 0;
 
@@ -152,17 +152,12 @@ namespace BitPacker
             // Is it variable legnth?
             if (objectDetails.LengthKey != null)
             {
-                PropertyObjectDetails lengthField = null;
-                foreach (var obj in objectPath)
-                {
-                    if (obj.IsCustomType && obj.LengthFields.TryGetValue(objectDetails.LengthKey, out lengthField))
-                        break;
-                }
-
-                if (lengthField == null)
+                PropertyObjectDetails lengthField;
+                Expression lengthFieldValue;
+                if (!context.TryFindLengthKey(objectDetails.LengthKey, out lengthField, out lengthFieldValue))
                     throw new Exception(String.Format("Could not find integer field with Length Key {0}", objectDetails.LengthKey));
 
-                arrayLength = lengthField.Value;
+                arrayLength = lengthField.AccessExpression(lengthFieldValue);
                 arrayInit = Expression.Assign(
                     subject,
                     CreateListOrArray(objectDetails, arrayLength)
@@ -182,7 +177,7 @@ namespace BitPacker
                 throw new Exception("Unknown length for array");
             }
 
-            var typeDetails = this.DeserializeValue(objectPath.Push(objectDetails.ElementObjectDetails));
+            var typeDetails = this.DeserializeValue(context.Push(objectDetails.ElementObjectDetails, subject));
 
 
             var loopVar = Expression.Variable(typeof(int), "loopVar");
