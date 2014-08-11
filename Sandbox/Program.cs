@@ -13,9 +13,7 @@ namespace Sandbox
     {
         static void Main(string[] args)
         {
-            var serializer = new BitPackerSerializer<TestClass>();
-
-            var buffer = serializer.Serialize(new TestClass()
+            var buffer = BitPackerTranslate.Serialize(new TestClass()
             {
                 //SubClass = new TestSubClass()
                 //{
@@ -30,11 +28,9 @@ namespace Sandbox
                 Array = new[] {  new TestSubClass() }
             });
 
-            var deserializer = new BitPackerDeserializer(typeof(TestClass));
-
             try
-            { 
-                var deserialized = deserializer.Deserialize(new BinaryReader(new MemoryStream(buffer)));
+            {
+                var deserialized = BitPackerTranslate.Deserialize<TestClass>(buffer);
             }
             catch (Exception)
             {

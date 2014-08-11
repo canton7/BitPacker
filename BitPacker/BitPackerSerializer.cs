@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 
 namespace BitPacker
 {
-    public class BitPackerSerializer
+    public class BitPackerSerializer : ISerializer
     {
         protected internal Action<BinaryWriter, object> serializer;
         protected internal Type subjectType;
@@ -63,8 +63,14 @@ namespace BitPacker
         }
     }
 
-    public class BitPackerSerializer<T>
+    public class BitPackerSerializer<T> : ISerializer<T>
     {
+        private static readonly Lazy<BitPackerSerializer<T>> lazy = new Lazy<BitPackerSerializer<T>>(() => new BitPackerSerializer<T>());
+        internal static BitPackerSerializer<T> Instance 
+        {
+            get { return lazy.Value; }
+        }
+
         public bool HasFixedSize { get; private set; }
         public int MinSize { get; private set; }
 

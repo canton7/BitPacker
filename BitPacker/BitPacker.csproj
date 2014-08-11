@@ -39,8 +39,11 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="BitPackerTranslate.cs" />
     <Compile Include="BitPackerDeserializer.cs" />
     <Compile Include="BitPackerTranslationException.cs" />
+    <Compile Include="IDeserializer.cs" />
+    <Compile Include="ISerializer.cs" />
     <Compile Include="TranslationContext.cs" />
     <Compile Include="DeserializerExpressionBuilder.cs" />
     <Compile Include="IDeserialize.cs" />
