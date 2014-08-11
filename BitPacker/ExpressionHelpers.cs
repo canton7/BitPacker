@@ -80,19 +80,14 @@ namespace BitPacker
 
             return Expression.TryCatch(
                 block,
-                Expression.MakeCatchBlock(
-                    typeof(BitPackerTranslationException),
-                    eToRethrow,
-                    Expression.Block(
-                        Expression.Throw(eToRethrow),
-                        Expression.Default(block.Type)
-                    ),
-                    null
-                ),
                 Expression.Catch(
                     e,
                     Expression.Block(
-                        Expression.Throw(exception),
+                        Expression.IfThenElse(
+                            Expression.TypeIs(e, typeof(BitPackerTranslationException)),
+                            Expression.Throw(e),
+                            Expression.Throw(exception)
+                        ),
                         Expression.Default(block.Type)
                     )
                 )
