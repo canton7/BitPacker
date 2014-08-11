@@ -7,13 +7,13 @@ using System.Threading.Tasks;
 
 namespace BitPacker
 {
-    internal class DeserializationStepContext
+    internal class TranslationStepContext
     {
         public ObjectDetails ObjectDetails { get; private set; }
         public Expression Subject { get; private set; }
         public string MemberName { get; private set; }
 
-        public DeserializationStepContext(ObjectDetails objectDetails, Expression subject, string memberName)
+        public TranslationStepContext(ObjectDetails objectDetails, Expression subject, string memberName)
         {
             this.ObjectDetails = objectDetails;
             this.Subject = subject;
@@ -21,9 +21,9 @@ namespace BitPacker
         }
     }
 
-    internal class DeserializationContext
+    internal class TranslationContext
     {
-        private readonly IImmutableStack<DeserializationStepContext> stack;
+        private readonly IImmutableStack<TranslationStepContext> stack;
 
         public ObjectDetails ObjectDetails { get; private set; }
 
@@ -32,19 +32,23 @@ namespace BitPacker
             get { return this.stack.Peek().Subject; }
         }
 
-        public DeserializationContext(ObjectDetails objectDetails)
-            : this(objectDetails, ImmutableStack<DeserializationStepContext>.Empty)
+        public TranslationContext(ObjectDetails objectDetails)
+            : this(objectDetails, ImmutableStack<TranslationStepContext>.Empty)
         { }
 
-        private DeserializationContext(ObjectDetails objectDetails, IImmutableStack<DeserializationStepContext> stack)
+        public TranslationContext(ObjectDetails objectDetails, Expression subject)
+            : this(objectDetails, new ImmutableStack<TranslationStepContext>(new TranslationStepContext(objectDetails, subject, "root")))
+        { }
+
+        private TranslationContext(ObjectDetails objectDetails, IImmutableStack<TranslationStepContext> stack)
         {
             this.ObjectDetails = objectDetails;
             this.stack = stack;
         }
 
-        public DeserializationContext Push(ObjectDetails objectDetails, Expression subject, string memberName)
+        public TranslationContext Push(ObjectDetails objectDetails, Expression subject, string memberName)
         {
-            return new DeserializationContext(objectDetails, this.stack.Push(new DeserializationStepContext(this.ObjectDetails, subject, memberName)));
+            return new TranslationContext(objectDetails, this.stack.Push(new TranslationStepContext(this.ObjectDetails, subject, memberName)));
         }
 
         public bool TryFindLengthKey(string key, out PropertyObjectDetails objectDetails, out Expression subject)
@@ -68,7 +72,7 @@ namespace BitPacker
 
         public List<string> GetMemberPath()
         {
-            return this.stack.Select(x => x.MemberName).Reverse().ToList();
+            return this.stack.Select(x => x.MemberName).Where(x => x != null).Reverse().ToList();
         }
     }
 }

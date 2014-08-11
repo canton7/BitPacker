@@ -41,7 +41,7 @@
   <ItemGroup>
     <Compile Include="BitPackerDeserializer.cs" />
     <Compile Include="BitPackerTranslationException.cs" />
-    <Compile Include="DeserializationContext.cs" />
+    <Compile Include="TranslationContext.cs" />
     <Compile Include="DeserializerExpressionBuilder.cs" />
     <Compile Include="IDeserialize.cs" />
     <Compile Include="ImmutableStack.cs" />

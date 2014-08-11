@@ -67,8 +67,8 @@ namespace Sandbox
         [BitPackerMember]
         public int IntField
         {
-            get { return 0; }
-            set { throw new InvalidOperationException(); }
+            get;
+            set;
         }
     }
 
@@ -78,8 +78,8 @@ namespace Sandbox
         [BitPackerMember]
         public int IntField
         {
-            get { return 0; }
-            set { throw new InvalidOperationException(); }
+            get;
+            set;
         }
     }
 }

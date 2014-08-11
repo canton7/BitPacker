@@ -28,7 +28,7 @@ namespace BitPacker
             // First, we need to make sure it's fully constructed
             var blockMembers = new List<Expression>();
 
-            var context = new DeserializationContext(objectDetails);
+            var context = new TranslationContext(objectDetails);
             var deserialized = this.DeserializeAndAssignValue(subject, context);
             blockMembers.Add(deserialized.OperationExpression);
             // Set return value
@@ -53,14 +53,14 @@ namespace BitPacker
         //    return blockMembers.Any() ? Expression.Block(blockMembers) : null;
         //}
 
-        private TypeDetails DeserializeAndAssignValue(Expression subject, DeserializationContext context)
+        private TypeDetails DeserializeAndAssignValue(Expression subject, TranslationContext context)
         {
             var typeDetails = this.DeserializeValue(context);
             var wrappedAssignment = ExpressionHelpers.TryTranslate(Expression.Assign(subject, typeDetails.OperationExpression), context.GetMemberPath());
             return new TypeDetails(typeDetails.HasFixedSize, typeDetails.MinSize, wrappedAssignment);
         }
 
-        private TypeDetails DeserializeValue(DeserializationContext context)
+        private TypeDetails DeserializeValue(TranslationContext context)
         {
             var objectDetails = context.ObjectDetails;
             if (objectDetails.IsEnumerable)
@@ -78,7 +78,7 @@ namespace BitPacker
             throw new Exception(String.Format("Don't know how to deserialize type {0}", objectDetails.Type.Name));
         }
 
-        public TypeDetails DeserializeCustomType(DeserializationContext context)
+        public TypeDetails DeserializeCustomType(TranslationContext context)
         {
             var objectDetails = context.ObjectDetails;
 
@@ -143,7 +143,7 @@ namespace BitPacker
             return new TypeDetails(typeDetails.HasFixedSize, typeDetails.MinSize, value);
         }
 
-        private TypeDetails DeserializeEnumerable(DeserializationContext context)
+        private TypeDetails DeserializeEnumerable(TranslationContext context)
         {
             var objectDetails = context.ObjectDetails;
 

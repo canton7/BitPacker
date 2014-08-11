@@ -30,7 +30,8 @@ namespace BitPacker
 
             blockMembers.Add(this.HandleVariableLengthArrays(subject, objectDetails));
 
-            var serialized = this.SerializeCustomType(subject, objectDetails);
+            var context = new TranslationContext(objectDetails, subject);
+            var serialized = this.SerializeCustomType(context);
             blockMembers.Add(serialized.OperationExpression);
 
             return new TypeDetails(serialized.HasFixedSize, serialized.MinSize, Expression.Block(blockMembers.Where(x => x != null)));
@@ -80,37 +81,44 @@ namespace BitPacker
             return blockMembers.Any() ? Expression.Block(blockMembers) : null;
         }
 
-        private TypeDetails SerializeValue(Expression value, ObjectDetails objectDetails)
+        private TypeDetails SerializeValue(TranslationContext context)
         {
+            var objectDetails = context.ObjectDetails;
+
             if (objectDetails.IsEnumerable)
-                return this.SerializeEnumerable(value, objectDetails);
+                return this.SerializeEnumerable(context);
 
             if (PrimitiveTypes.Types.ContainsKey(objectDetails.Type))
-                return this.SerializePrimitive(value, objectDetails);
+                return this.SerializePrimitive(context);
 
             if (objectDetails.IsEnum)
-                return this.SerializeEnum(value, objectDetails);
+                return this.SerializeEnum(context);
 
             if (objectDetails.IsCustomType)
-                return this.SerializeCustomType(value, objectDetails);
+                return this.SerializeCustomType(context);
 
             throw new Exception(String.Format("Don't know how to serialize type {0}", objectDetails.Type.Name));
         }
 
-        public TypeDetails SerializeCustomType(Expression value, ObjectDetails objectDetails)
+        public TypeDetails SerializeCustomType(TranslationContext context)
         {
+            var objectDetails = context.ObjectDetails;
+
             // If it's not marked with our attribute, we're not serializing it
             if (!objectDetails.IsCustomType)
                 return null;
 
             Expression result;
-            var typeDetails = objectDetails.Properties.Select(property => this.SerializeValue(property.AccessExpression(value), property)).ToArray();
+            var typeDetails = objectDetails.Properties.Select(property =>
+            {
+                return this.SerializeValue(context.Push(property, property.AccessExpression(context.Subject), property.PropertyInfo.Name));
+            }).ToArray();
 
             // If they claim to be able to serialize themselves, let them
             if (typeof(ISerialize).IsAssignableFrom(objectDetails.Type))
             {
                 var method = typeof(ISerialize).GetMethod("Serialize");
-                result = Expression.Call(value, method, this.writer);
+                result = Expression.Call(context.Subject, method, this.writer);
             }
             else
             {
@@ -122,8 +130,11 @@ namespace BitPacker
             return new TypeDetails(typeDetails.All(x => x.HasFixedSize), typeDetails.Sum(x => x.MinSize), result);
         }
 
-        private TypeDetails SerializePrimitive(Expression value, ObjectDetails objectDetails)
+        private TypeDetails SerializePrimitive(TranslationContext context)
         {
+            var objectDetails = context.ObjectDetails;
+            var value = context.Subject;
+
             // Even through EndiannessUtilities has now Swap(byte) overload, we get an AmbiguousMatchException
             // when we try and find such a method (maybe the byte is being coerced into an int or something?).
             // Therefore, handle this...
@@ -137,16 +148,21 @@ namespace BitPacker
                     value = Expression.Call(swapMethod, value);
             }
 
-            return new TypeDetails(true, info.Size, info.SerializeExpression(this.writer, value));
+            var wrappedWrite = ExpressionHelpers.TryTranslate(info.SerializeExpression(this.writer, value), context.GetMemberPath());
+
+            return new TypeDetails(true, info.Size, wrappedWrite);
         }
 
-        public TypeDetails SerializeEnum(Expression value, ObjectDetails objectDetails)
+        public TypeDetails SerializeEnum(TranslationContext context)
         {
-            return this.SerializePrimitive(Expression.Convert(value, objectDetails.EnumEquivalentType), objectDetails.EnumEquivalentObjectDetails);
+            var newContext = context.Push(context.ObjectDetails.EnumEquivalentObjectDetails, Expression.Convert(context.Subject, context.ObjectDetails.EnumEquivalentType), null);
+            return this.SerializePrimitive(newContext);
         }
 
-        private TypeDetails SerializeEnumerable(Expression enumerable, ObjectDetails objectDetails)
-        {
+        private TypeDetails SerializeEnumerable(TranslationContext context)
+        {    
+            var objectDetails = context.ObjectDetails;
+            var enumerable = context.Subject;
             var blockMembers = new List<Expression>();
             var blockVars = new List<ParameterExpression>();
 
@@ -170,7 +186,7 @@ namespace BitPacker
             // If they specified a length field, we've already assigned it (yay how organised as we?!)
 
             var loopVar = Expression.Variable(objectDetails.ElementType, "loopVariable");
-            var typeDetails = this.SerializeValue(loopVar, objectDetails.ElementObjectDetails);
+            var typeDetails = this.SerializeValue(context.Push(objectDetails.ElementObjectDetails, loopVar, "[]"));
             blockMembers.Add(ExpressionHelpers.ForEach(enumerable, objectDetails.ElementType, loopVar, typeDetails.OperationExpression));
 
             // If it's a fixed-length array, we might need to pad it out
@@ -186,9 +202,9 @@ namespace BitPacker
             {
                 var emptyInstanceVar = Expression.Variable(objectDetails.ElementType, "emptyInstance");
                 blockVars.Add(emptyInstanceVar);
-                var emptyInstanceAssignment = Expression.Assign(emptyInstanceVar, Expression.New(objectDetails.ElementType));
+                var emptyInstanceAssignment = ExpressionHelpers.TryTranslate(Expression.Assign(emptyInstanceVar, Expression.New(objectDetails.ElementType)), context.GetMemberPath());
 
-                var initAndSerialize = this.SerializeValue(emptyInstanceVar, objectDetails.ElementObjectDetails).OperationExpression;
+                var initAndSerialize = this.SerializeValue(context.Push(objectDetails.ElementObjectDetails, emptyInstanceVar, "[]")).OperationExpression;
                 var i = Expression.Variable(typeof(int), "i");
 
                 var padding = Expression.IfThen(
