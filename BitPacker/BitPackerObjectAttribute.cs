@@ -10,6 +10,8 @@ namespace BitPacker
     public sealed class BitPackerObjectAttribute : Attribute
     {
         public Endianness Endianness { get; set; }
+        public Type CustomSerializer { get; set; }
+        public Type CustomDeserializer { get; set; }
 
         public BitPackerObjectAttribute()
         {

@@ -46,7 +46,6 @@
     <Compile Include="ISerializer.cs" />
     <Compile Include="TranslationContext.cs" />
     <Compile Include="DeserializerExpressionBuilder.cs" />
-    <Compile Include="IDeserialize.cs" />
     <Compile Include="ImmutableStack.cs" />
     <Compile Include="SerializerExpressionBuilder.cs" />
     <Compile Include="BitPackerObjectAttribute.cs" />
@@ -54,7 +53,6 @@
     <Compile Include="Endianness.cs" />
     <Compile Include="EndianUtilities.cs" />
     <Compile Include="ExpressionHelpers.cs" />
-    <Compile Include="ISerialize.cs" />
     <Compile Include="ObjectDetails.cs" />
     <Compile Include="PrimitiveTypeInfo.cs" />
     <Compile Include="PrimitiveTypes.cs" />

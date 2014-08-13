@@ -25,7 +25,8 @@ namespace Sandbox
                 //},
                 ////ArrayField = new List<int>() { 1, 2, 3 },
                 //Enum = Test.Bar,
-                Array = new[] {  new TestSubClass() }
+                //Array = new[] {  new TestSubClass() }
+                SubClass = new TestSubClass()
             });
 
             try
@@ -44,11 +45,11 @@ namespace Sandbox
     [BitPackerObject]
     public class TestClass
     {
-        [BitPackerArray(Length = 1)]
-        public TestSubClass[] Array { get; set; }
+        [BitPackerMember]
+        public TestSubClass SubClass { get; set; }
     }
 
-    [BitPackerObject]
+    [BitPackerObject(CustomDeserializer = typeof(CustomDeserializer))]
     public class TestSubClass
     {
         //[BitPackerMember]
@@ -76,6 +77,24 @@ namespace Sandbox
         {
             get;
             set;
+        }
+    }
+
+    public class CustomDeserializer : IDeserializer
+    {
+        public bool HasFixedSize
+        {
+            get { return false; }
+        }
+
+        public int MinSize
+        {
+            get { return 3; }
+        }
+
+        public object Deserialize(BinaryReader reader)
+        {
+ 	        throw new NotImplementedException();
         }
     }
 }

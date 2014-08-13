@@ -15,11 +15,14 @@ namespace BitPacker
         protected Endianness? endianness;
         protected IReadOnlyList<PropertyObjectDetails> properties;
         protected IReadOnlyDictionary<string, PropertyObjectDetails> lengthFields;
+        protected readonly BitPackerObjectAttribute objectAttribute;
         protected readonly BitPackerMemberAttribute propertyAttribute;
         protected readonly string lengthKey;
         protected readonly int length;
         protected readonly EnumerableElementObjectDetails elementObjectDetails;
         protected readonly EnumObjectDetails enumEquivalentObjectDetails;
+        protected readonly Type customSerializer;
+        protected readonly Type customDeserializer;
 
         public Type Type
         {
@@ -106,6 +109,16 @@ namespace BitPacker
             get { return this.propertyAttribute.SerializeInternal; }
         }
 
+        public Type CustomSerializer
+        {
+            get { return this.customSerializer; }
+        }
+
+        public Type CustomDeserializer
+        {
+            get { return this.customDeserializer; }
+        }
+
         public EnumObjectDetails EnumEquivalentObjectDetails
         {
             get
@@ -119,8 +132,20 @@ namespace BitPacker
         public ObjectDetails(Type type, BitPackerMemberAttribute propertyAttribute, Endianness? endianness = null, bool isAttributeCascaded = false)
         {
             this.type = type;
+            this.objectAttribute = this.type.GetCustomAttribute<BitPackerObjectAttribute>();
             this.endianness = endianness;
-            this.propertyAttribute = propertyAttribute;  
+            this.propertyAttribute = propertyAttribute;
+
+            if (this.endianness == null && this.objectAttribute != null)
+                this.endianness = this.objectAttribute.Endianness;
+
+            this.customSerializer = propertyAttribute.CustomSerializer;
+            if (this.customSerializer == null && this.objectAttribute != null)
+                this.customSerializer = this.objectAttribute.CustomSerializer;
+
+            this.customDeserializer = propertyAttribute.CustomDeserializer;
+            if (this.customDeserializer == null && this.objectAttribute != null)
+                this.customDeserializer = this.objectAttribute.CustomDeserializer;
 
             if (this.IsEnum)
             {
@@ -168,11 +193,8 @@ namespace BitPacker
 
         public void Discover()
         {
-            var attribute = this.type.GetCustomAttribute<BitPackerObjectAttribute>();
-            if (attribute != null)
+            if (this.objectAttribute != null)
             {
-                this.endianness = this.endianness ?? attribute.Endianness;
-
                 var allProperties = (from property in this.type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
                                   let propertyAttribute = property.GetCustomAttribute<BitPackerMemberAttribute>(false)
                                   where propertyAttribute != null

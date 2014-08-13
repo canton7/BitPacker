@@ -50,17 +50,6 @@ namespace BitPacker
             this.CheckType(subject);
             this.serializer(writer, subject);
         }
-
-        public byte[] Serialize(object subject)
-        {
-            this.CheckType(subject);
-            using (var ms = new MemoryStream())
-            using (var writer = new BinaryWriter(ms))
-            {
-                this.serializer(writer, subject);
-                return ms.GetBuffer().Take((int)ms.Position).ToArray();
-            }
-        }
     }
 
     public class BitPackerSerializer<T> : ISerializer<T>
@@ -94,16 +83,6 @@ namespace BitPacker
         public void Serialize(BinaryWriter writer, T subject)
         {
             this.serializer(writer, subject);
-        }
-
-        public byte[] Serialize(T subject)
-        {
-            using (var ms = new MemoryStream())
-            using (var writer = new BinaryWriter(ms))
-            {
-                this.serializer(writer, subject);
-                return ms.GetBuffer().Take((int)ms.Position).ToArray();
-            }
         }
     }
 }

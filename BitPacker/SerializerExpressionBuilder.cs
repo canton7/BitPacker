@@ -114,18 +114,9 @@ namespace BitPacker
                 return this.SerializeValue(context.Push(property, property.AccessExpression(context.Subject), property.PropertyInfo.Name));
             }).ToArray();
 
-            // If they claim to be able to serialize themselves, let them
-            if (typeof(ISerialize).IsAssignableFrom(objectDetails.Type))
-            {
-                var method = typeof(ISerialize).GetMethod("Serialize");
-                result = Expression.Call(context.Subject, method, this.writer);
-            }
-            else
-            {
-                var blockMembers = typeDetails.Select(x => x.OperationExpression);
+            var blockMembers = typeDetails.Select(x => x.OperationExpression);
 
-                result = Expression.Block(blockMembers.Where(x => x != null));
-            }
+            result = Expression.Block(blockMembers.Where(x => x != null));
 
             return new TypeDetails(typeDetails.All(x => x.HasFixedSize), typeDetails.Sum(x => x.MinSize), result);
         }

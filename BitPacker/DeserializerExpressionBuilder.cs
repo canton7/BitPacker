@@ -11,6 +11,7 @@ namespace BitPacker
     {
         private readonly Expression reader;
         private readonly Type objectType;
+        private Dictionary<Type, object> deserializerCache = new Dictionary<Type, object>();
 
         public DeserializerExpressionBuilder(Expression reader, Type objectType)
         {
@@ -97,19 +98,20 @@ namespace BitPacker
             var typeDetails = objectDetails.Properties.Select(property =>
             {
                 var newContext = context.Push(property, subject, property.PropertyInfo.Name);
-                return this.DeserializeAndAssignValue(property.AccessExpression(subject), newContext);
+
+                // Does it have a custom deserializer?
+                if (property.CustomDeserializer != null && typeof(IDeserializer).IsAssignableFrom(property.CustomDeserializer))
+                {
+                    return this.CreateAndAssignFromNongenericDeserializer(property.CustomDeserializer, property.AccessExpression(subject), newContext);
+                }
+                else
+                {
+                    return this.DeserializeAndAssignValue(property.AccessExpression(subject), newContext);
+                }
             }).ToArray();
 
-            // If they claim to be able to serialize themselves, let them
-            if (typeof(IDeserialize).IsAssignableFrom(objectDetails.Type))
-            {
-                var method = typeof(ISerialize).GetMethod("Deserialize");
-                blockMembers.Add(Expression.Call(subject, method, this.reader));
-            }
-            else
-            {
-                blockMembers.AddRange(typeDetails.Select(x => x.OperationExpression));
-            }
+            blockMembers.AddRange(typeDetails.Select(x => x.OperationExpression));
+            
 
             blockMembers.Add(subject); // Last value in block is the return value
             var result = Expression.Block(new[] { subject }, blockMembers.Where(x => x != null));
@@ -232,6 +234,33 @@ namespace BitPacker
                 var ctor = listType.GetConstructor(new[] { typeof(int) });
                 return Expression.New(ctor, length);
             }
+        }
+
+        private TypeDetails CreateAndAssignFromNongenericDeserializer(Type deserializerType, Expression subject, TranslationContext context)
+        {
+            if (!deserializerType.IsClass || deserializerType.IsAbstract)
+                throw new Exception("Custom deserializer must be a concrete class");
+
+            object deserializerObject;
+
+            // Is it in the cache?
+            if (!this.deserializerCache.TryGetValue(deserializerType, out deserializerObject))
+            {
+                deserializerObject = Activator.CreateInstance(deserializerType);
+                this.deserializerCache.Add(deserializerType, deserializerObject);
+            }
+
+            var deserializer = Expression.Convert(Expression.Constant(deserializerObject), deserializerType);
+
+            var minSize = (int)typeof(IDeserializer).GetProperty("MinSize").GetValue(deserializerObject);
+            var hasFixedSize = (bool)typeof(IDeserializer).GetProperty("HasFixedSize").GetValue(deserializerObject);
+
+            var deserializeMethod = typeof(IDeserializer).GetMethod("Deserialize");
+            var deserialization = Expression.Convert(Expression.Call(deserializer, deserializeMethod, this.reader), context.ObjectDetails.Type);
+
+            var wrappedAssignment = ExpressionHelpers.TryTranslate(Expression.Assign(subject, deserialization), context.GetMemberPath());
+
+            return new TypeDetails(hasFixedSize, minSize, wrappedAssignment);
         }
     }
 }

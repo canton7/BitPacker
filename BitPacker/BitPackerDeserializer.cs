@@ -35,15 +35,6 @@ namespace BitPacker
         {
             return this.deserializer(reader);
         }
-
-        public object Deserialize(byte[] buffer)
-        {
-            using (var ms = new MemoryStream())
-            using (var reader = new BinaryReader(ms))
-            {
-                return this.deserializer(reader);
-            }
-        }
     }
 
     public class BitPackerDeserializer<T> : IDeserializer<T>
@@ -77,15 +68,6 @@ namespace BitPacker
         public T Deserialize(BinaryReader reader)
         {
             return this.deserializer(reader);
-        }
-
-        public T Deserialize(byte[] buffer)
-        {
-            using (var ms = new MemoryStream(buffer))
-            using (var reader = new BinaryReader(ms))
-            {
-                return this.deserializer(reader);
-            }
         }
     }
 }

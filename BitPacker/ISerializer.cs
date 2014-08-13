@@ -13,8 +13,6 @@ namespace BitPacker
         int MinSize { get; }
 
         void Serialize(BinaryWriter writer, T subject);
-
-        byte[] Serialize(T subject);
     }
 
     public interface ISerializer
@@ -23,7 +21,28 @@ namespace BitPacker
         int MinSize { get; }
 
         void Serialize(BinaryWriter writer, object subject);
+    }
 
-        byte[] Serialize(object subject);
+    public static class SerializerExtensions
+    {
+        public static byte[] Serialize<T>(this ISerializer<T> serializer, T subject)
+        {
+            using (var ms = new MemoryStream())
+            using (var writer = new BinaryWriter(ms))
+            {
+                serializer.Serialize(writer, subject);
+                return ms.GetBuffer().Take((int)ms.Position).ToArray();
+            }
+        }
+
+        public static byte[] Serialize(this ISerializer serializer, object subject)
+        {
+            using (var ms = new MemoryStream())
+            using (var writer = new BinaryWriter(ms))
+            {
+                serializer.Serialize(writer, subject);
+                return ms.GetBuffer().Take((int)ms.Position).ToArray();
+            }
+        }
     }
 }

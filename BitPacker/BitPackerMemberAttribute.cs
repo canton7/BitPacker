@@ -13,6 +13,8 @@ namespace BitPacker
         public int Order { get; set; }
         public Type EnumType { get; set; }
         internal bool SerializeInternal { get; set; }
+        public Type CustomSerializer { get; set; }
+        public Type CustomDeserializer { get; set; }
 
         internal Endianness? NullableEndianness;
         public Endianness Endianness
