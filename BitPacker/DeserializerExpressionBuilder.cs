@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Text;
@@ -9,11 +10,11 @@ namespace BitPacker
 {
     internal class DeserializerExpressionBuilder
     {
-        private readonly Expression reader;
+        private readonly ParameterExpression reader;
         private readonly Type objectType;
         private Dictionary<Type, object> deserializerCache = new Dictionary<Type, object>();
 
-        public DeserializerExpressionBuilder(Expression reader, Type objectType)
+        public DeserializerExpressionBuilder(ParameterExpression reader, Type objectType)
         {
             this.reader = reader;
             this.objectType = objectType;
@@ -100,9 +101,9 @@ namespace BitPacker
                 var newContext = context.Push(property, subject, property.PropertyInfo.Name);
 
                 // Does it have a custom deserializer?
-                if (property.CustomDeserializer != null && typeof(IDeserializer).IsAssignableFrom(property.CustomDeserializer))
+                if (property.CustomDeserializer != null)
                 {
-                    return this.CreateAndAssignFromNongenericDeserializer(property.CustomDeserializer, property.AccessExpression(subject), newContext);
+                    return this.CreateAndAssignFromDeserializer(property.CustomDeserializer, property.AccessExpression(subject), newContext);
                 }
                 else
                 {
@@ -236,10 +237,18 @@ namespace BitPacker
             }
         }
 
-        private TypeDetails CreateAndAssignFromNongenericDeserializer(Type deserializerType, Expression subject, TranslationContext context)
+        private TypeDetails CreateAndAssignFromDeserializer(Type deserializerType, Expression subject, TranslationContext context)
         {
             if (!deserializerType.IsClass || deserializerType.IsAbstract)
                 throw new Exception("Custom deserializer must be a concrete class");
+
+            Type interfaceType;
+
+            interfaceType = deserializerType.GetInterfaces().FirstOrDefault(x => (x.IsGenericType && x.GetGenericTypeDefinition() == typeof(IDeserializer<>)) || x == typeof(IDeserializer));
+            if (interfaceType == null)
+            {
+                throw new Exception("Custom deserializer must implement IDeserializer or IDeserializer<T>");
+            }
 
             object deserializerObject;
 
@@ -252,15 +261,50 @@ namespace BitPacker
 
             var deserializer = Expression.Convert(Expression.Constant(deserializerObject), deserializerType);
 
-            var minSize = (int)typeof(IDeserializer).GetProperty("MinSize").GetValue(deserializerObject);
-            var hasFixedSize = (bool)typeof(IDeserializer).GetProperty("HasFixedSize").GetValue(deserializerObject);
+            var minSize = (int)deserializerType.GetProperty("MinSize").GetValue(deserializerObject);
+            var hasFixedSize = (bool)deserializerType.GetProperty("HasFixedSize").GetValue(deserializerObject);
 
-            var deserializeMethod = typeof(IDeserializer).GetMethod("Deserialize");
+            var deserializeMethod = deserializerType.GetMethod("Deserialize");
             var deserialization = Expression.Convert(Expression.Call(deserializer, deserializeMethod, this.reader), context.ObjectDetails.Type);
+
+            var positionAccess = Expression.Property(Expression.Property(this.reader, "BaseStream"), "Position");
+
+            var startingPositionVar = Expression.Variable(typeof(long), "beforePosition");
+            var startingPositionAssignment = Expression.Assign(startingPositionVar, positionAccess);
 
             var wrappedAssignment = ExpressionHelpers.TryTranslate(Expression.Assign(subject, deserialization), context.GetMemberPath());
 
-            return new TypeDetails(hasFixedSize, minSize, wrappedAssignment);
+            var readBytesVar = Expression.Variable(typeof(long), "readBytes");
+            var readBytesAssignment = Expression.Assign(readBytesVar, Expression.Subtract(positionAccess, startingPositionVar));
+
+            Expression check;
+            Expression exceptionMessage;
+            if (hasFixedSize)
+            {
+                check = Expression.NotEqual(Expression.Convert(Expression.Constant(minSize), typeof(long)), readBytesVar);
+                var constMessage = String.Format("Error deserializing field {0} using custom deserializer: Deserializer should have read {1} bytes, but actually read {{0}}", String.Join(".", context.GetMemberPath()), minSize);
+                exceptionMessage = ExpressionHelpers.StringFormat(constMessage, readBytesVar);
+            }
+            else
+            {
+                check = Expression.GreaterThan(Expression.Convert(Expression.Constant(minSize), typeof(long)), readBytesVar);
+                var constMessage = String.Format("Error deserializing field {0} using custom deserializer: Deserializer should have read {1} bytes or more, but actually read {{0}}", String.Join(".", context.GetMemberPath()), minSize);
+                exceptionMessage = ExpressionHelpers.StringFormat(constMessage, readBytesVar);
+            }
+
+            var exceptionCtor = typeof(BitPackerTranslationException).GetConstructor(new[] { typeof(string), typeof(List<string>) });
+            var newException = Expression.New(exceptionCtor, exceptionMessage, Expression.Constant(context.GetMemberPath()));
+
+            var checkAndThrow = Expression.IfThen(check, Expression.Throw(newException));
+
+            var block = Expression.Block(new[] { startingPositionVar, readBytesVar },
+                startingPositionAssignment,
+                wrappedAssignment,
+                readBytesAssignment,
+                checkAndThrow
+            );
+
+            return new TypeDetails(hasFixedSize, minSize, block);
         }
     }
 }

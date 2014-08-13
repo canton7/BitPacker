@@ -45,11 +45,11 @@ namespace Sandbox
     [BitPackerObject]
     public class TestClass
     {
-        [BitPackerMember]
+        [BitPackerMember(CustomDeserializer = typeof(CustomDeserializer))]
         public TestSubClass SubClass { get; set; }
     }
 
-    [BitPackerObject(CustomDeserializer = typeof(CustomDeserializer))]
+    [BitPackerObject]
     public class TestSubClass
     {
         //[BitPackerMember]
@@ -80,7 +80,7 @@ namespace Sandbox
         }
     }
 
-    public class CustomDeserializer : IDeserializer
+    public class CustomDeserializer : IDeserializer<TestSubClass>
     {
         public bool HasFixedSize
         {
@@ -92,9 +92,9 @@ namespace Sandbox
             get { return 3; }
         }
 
-        public object Deserialize(BinaryReader reader)
+        public TestSubClass Deserialize(BinaryReader reader)
         {
- 	        throw new NotImplementedException();
+            return new TestSubClass();
         }
     }
 }

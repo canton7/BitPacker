@@ -73,7 +73,7 @@ namespace BitPacker
         public static Expression TryTranslate(Expression block, List<string> memberPath)
         {
             var e = Expression.Parameter(typeof(Exception), "e");
-            var ctor = typeof(BitPackerTranslationException).GetConstructors()[0];
+            var ctor = typeof(BitPackerTranslationException).GetConstructor(new[] { typeof(List<string>), typeof(Exception) });
             var exception = Expression.New(ctor, Expression.Constant(memberPath), e);
 
             var eToRethrow = Expression.Parameter(typeof(BitPackerTranslationException), "e");
@@ -92,6 +92,13 @@ namespace BitPacker
                     )
                 )
             );
+        }
+
+        public static Expression StringFormat(string format, params Expression[] args)
+        {
+            var method = typeof(String).GetMethod("Format", new[] { typeof(string), typeof(string[]) });
+            var objArray = Expression.NewArrayInit(typeof(object), args.Select(x => Expression.Convert(x, typeof(object))));
+            return Expression.Call(method, new Expression[] { Expression.Constant(format), objArray });
         }
     }
 }

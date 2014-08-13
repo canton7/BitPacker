@@ -10,6 +10,12 @@ namespace BitPacker
     {
         public IReadOnlyList<string> MemberPath { get; private set; }
 
+        public BitPackerTranslationException(string message, List<string> memberPath)
+            : base(message)
+        {
+            this.MemberPath = memberPath.AsReadOnly();
+        }
+
         public BitPackerTranslationException(List<string> memberPath, Exception innerException)
             : base(String.Format("Error translating field {0}", String.Join(".", memberPath)), innerException)
         {
