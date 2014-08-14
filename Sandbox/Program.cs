@@ -26,7 +26,7 @@ namespace Sandbox
                 ////ArrayField = new List<int>() { 1, 2, 3 },
                 //Enum = Test.Bar,
                 //Array = new[] {  new TestSubClass() }
-                SubClass = new TestSubClass()
+                //SubClass = new TestSubClass()
             });
 
             try
@@ -45,8 +45,17 @@ namespace Sandbox
     [BitPackerObject]
     public class TestClass
     {
-        [BitPackerMember(CustomDeserializer = typeof(CustomDeserializer))]
-        public TestSubClass SubClass { get; set; }
+        //[BitPackerMember(CustomDeserializer = typeof(CustomDeserializer))]
+        //public TestSubClass SubClass { get; set; }
+
+        [BitPackerArrayLength(LengthKey = "key")]
+        public int Length
+        {
+            get { return 3; }
+        }
+
+        [BitPackerArray(LengthKey = "key")]
+        public int[] Testy { get; set; }
     }
 
     [BitPackerObject]

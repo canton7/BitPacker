@@ -67,6 +67,10 @@ namespace BitPacker
                 if (!group.LengthFields[0].ObjectDetails.Serialize)
                     return null;
 
+                // If it's not writable, then that's fine
+                if (!group.LengthFields[0].ObjectDetails.PropertyInfo.CanWrite)
+                    return null;
+
                 return Expression.Assign(
                     group.LengthFields[0].Value,
                     ExpressionHelpers.LengthOfEnumerable(
@@ -167,7 +171,7 @@ namespace BitPacker
                 blockVars.Add(lengthVar);
 
                 var enumerableLength = ExpressionHelpers.LengthOfEnumerable(enumerable, objectDetails.ElementType);
-                blockMembers.Add(Expression.Assign(lengthVar, enumerableLength));
+                blockMembers.Add(ExpressionHelpers.TryTranslate(Expression.Assign(lengthVar, enumerableLength), context.GetMemberPath()));
 
                 var test = Expression.GreaterThan(lengthVar, Expression.Constant(objectDetails.EnumerableLength));
                 var throwExpr = Expression.Throw(Expression.Constant(new Exception("You specified an explicit length for an array member, but the actual member is longer")));
@@ -178,7 +182,7 @@ namespace BitPacker
 
             var loopVar = Expression.Variable(objectDetails.ElementType, "loopVariable");
             var typeDetails = this.SerializeValue(context.Push(objectDetails.ElementObjectDetails, loopVar, "[]"));
-            blockMembers.Add(ExpressionHelpers.ForEach(enumerable, objectDetails.ElementType, loopVar, typeDetails.OperationExpression));
+            blockMembers.Add(ExpressionHelpers.TryTranslate(ExpressionHelpers.ForEach(enumerable, objectDetails.ElementType, loopVar, typeDetails.OperationExpression), context.GetMemberPath()));
 
             // If it's a fixed-length array, we might need to pad it out
             // if (lengthVar < property.EnumerableLength)
