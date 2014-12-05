@@ -159,7 +159,6 @@ namespace BitPacker
 
             if (objectDetails.LengthKey != null)
             {
-                PropertyObjectDetails lengthField;
                 if (!context.TryFindLengthKey(objectDetails.LengthKey, out arrayLength))
                     throw new Exception(String.Format("Could not find integer field with Length Key {0}", objectDetails.LengthKey));
 
