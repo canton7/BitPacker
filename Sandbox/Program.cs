@@ -16,8 +16,8 @@ namespace Sandbox
             var buffer = BitPackerTranslate.Serialize(new TestClass()
             {
                 //StringLength = 10,
-                StringMember = "testy",
-                Test = Int32.MaxValue,
+                //StringMember = "testy",
+                Test = double.NaN
                 //SubClass = new TestSubClass()
                 //{
                 //    FloatField = 5.0f
@@ -45,7 +45,7 @@ namespace Sandbox
 
     public enum Test { Foo, Bar };
 
-    [BitPackerObject]
+    [BitPackerObject(Endianness = Endianness.LittleEndian)]
     public class TestClass
     {
         //[BitPackerMember(CustomDeserializer = typeof(CustomDeserializer))]
@@ -54,11 +54,11 @@ namespace Sandbox
         //[BitPackerArrayLength(LengthKey = "test")]
         //public int StringLength { get; set; }
 
-        [BitPackerString(Encoding = "ASCII", NullTerminated = true)]
-        public string StringMember { get; set; }
+        //[BitPackerString(Encoding = "ASCII", NullTerminated = true)]
+        //public string StringMember { get; set; }
 
         [BitPackerMember]
-        public int Test { get; set; }
+        public double Test { get; set; }
 
         //[BitPackerArrayLength(LengthKey = "key")]
         //public int Length

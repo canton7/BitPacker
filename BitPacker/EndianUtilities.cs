@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -53,17 +54,58 @@ namespace BitPacker
 
         public static float Swap(float val)
         {
-            // We can't get the raw bytes ourselves without unmanaged code, and I don't want this library to be unmanaged
-            // So use BitConverter, even though it's slower
-            // TODO: Profile this against  BitConverter.ToSingle(BitConverter.GetBytes(val).Reverse().ToArray(), 0)
-            // The current implementation doesn't do an array reversal and allocate, but does have more method calls
-            return BitConverter.ToSingle(BitConverter.GetBytes(Swap(BitConverter.ToInt32(BitConverter.GetBytes(val), 0))), 0);
+            // Alternatives are BitConverter.ToSingle(BitConverter.GetBytes(val).Reverse().ToArray(), 0)
+            // and BitConverter.ToSingle(BitConverter.GetBytes(Swap(BitConverter.ToInt32(BitConverter.GetBytes(val), 0))), 0)
+            return ToSingle(Swap(ToInt32(val)));
         }
 
         public static double Swap(double val)
         {
-            // We can play a slightly better trick on this one
-            return BitConverter.Int64BitsToDouble(Swap(BitConverter.DoubleToInt64Bits(val)));
+            // We *could* use BitConverter.Int64BitsToDouble(Swap(BitConverter.DoubleToInt64Bits(val))), but that throws if
+            // system endianness isn't LittleEndian... Unlikely to ever not be the case, but we have a good workaround
+            // (and we don't require that assertion)
+            return ToDouble(Swap(ToInt64(val)));
+        }
+
+        // Thanks to chilvers in ##csharp: https://gist.github.com/chilversc/f4a031f6f7327f2e5ab4
+        private static int ToInt32(float value)
+        {
+            return new IntFloatMap() { Float = value }.Int;
+        }
+
+        private static float ToSingle(int value)
+        {
+            return new IntFloatMap() { Int = value }.Float;
+        }
+
+        private static long ToInt64(double value)
+        {
+            return new LongDoubleMap() { Double = value }.Long;
+        }
+
+        private static double ToDouble(long value)
+        {
+            return new LongDoubleMap() { Long = value }.Double;
+        }
+
+        [StructLayout(LayoutKind.Explicit)]
+        private struct IntFloatMap
+        {
+            [FieldOffset(0)]
+            public int Int;
+
+            [FieldOffset(0)]
+            public float Float;
+        }
+
+        [StructLayout(LayoutKind.Explicit)]
+        private struct LongDoubleMap
+        {
+            [FieldOffset(0)]
+            public long Long;
+
+            [FieldOffset(0)]
+            public double Double;
         }
     }
 }
