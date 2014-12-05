@@ -31,7 +31,7 @@ namespace BitPacker
             using (var writer = new BinaryWriter(ms))
             {
                 serializer.Serialize(writer, subject);
-                return ms.GetBuffer().Take((int)ms.Position).ToArray();
+                return ms.ToArray();
             }
         }
 
@@ -41,7 +41,7 @@ namespace BitPacker
             using (var writer = new BinaryWriter(ms))
             {
                 serializer.Serialize(writer, subject);
-                return ms.GetBuffer().Take((int)ms.Position).ToArray();
+                return ms.ToArray();
             }
         }
     }
