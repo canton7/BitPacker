@@ -25,6 +25,7 @@ namespace BitPacker
         protected readonly EnumObjectDetails enumEquivalentObjectDetails;
         protected readonly Type customSerializer;
         protected readonly Type customDeserializer;
+        protected readonly Type enumEquivalentType;
 
         public Type Type
         {
@@ -129,7 +130,7 @@ namespace BitPacker
             {
                 if (!this.IsEnum)
                     throw new InvalidOperationException("Not Enum");
-                return this.propertyAttribute.EnumType == null ? typeof(int) : this.propertyAttribute.EnumType;
+                return this.enumEquivalentType ?? typeof(int);
             }
         }
 
@@ -181,12 +182,6 @@ namespace BitPacker
             if (this.customDeserializer == null && this.objectAttribute != null)
                 this.customDeserializer = this.objectAttribute.CustomDeserializer;
 
-            if (this.IsEnum)
-            {
-                this.enumEquivalentObjectDetails = new EnumObjectDetails(this.EnumEquivalentType, this.propertyAttribute, this.Endianness);
-                this.CheckEnum();
-            }
-
             // Strings are a special sort of array, reeeeally...
             // Strings have a bit extra - so handle that, then let the array handling kick in
 
@@ -232,6 +227,20 @@ namespace BitPacker
 
                 this.lengthKey = arrayLengthAttribute.LengthKey;
             }
+
+            var enumAttribute = propertyAttribute as BitPackerEnumAttribute;
+            if (enumAttribute != null && !isAttributeCascaded)
+            {
+                if (!this.Type.IsEnum)
+                    throw new Exception("Properties decorated with BitPackerEnum must be enums");
+
+                this.enumEquivalentType = enumAttribute.EnumType;
+            }
+            if (this.IsEnum)
+            {
+                this.enumEquivalentObjectDetails = new EnumObjectDetails(this.EnumEquivalentType, this.propertyAttribute, this.Endianness);
+                this.CheckEnum();
+            }
         }
 
         private void CheckEnum()
@@ -242,8 +251,8 @@ namespace BitPacker
             // Can't use linq, as it's an non-generic IEnumerable of value types
             foreach (var enumVal in Enum.GetValues(this.Type))
             {
-                if ((int)enumVal > maxVal)
-                    throw new Exception(String.Format("Enum type {0} has a size of {1} bytes, but has a member which is greater than this", this.Type, length));
+                if ((int)enumVal >= maxVal)
+                    throw new Exception(String.Format("Enum type {0} has a size of {1} bytes, but has a member '{2}' which is greater than this", this.Type, length, enumVal));
             }
         }
 
@@ -307,7 +316,7 @@ namespace BitPacker
     internal class EnumObjectDetails : ObjectDetails
     {
         public EnumObjectDetails(Type type, BitPackerMemberAttribute propertyAttribute, Endianness? endianness = null)
-            : base(type, propertyAttribute, endianness)
+            : base(type, propertyAttribute, endianness, true)
         { }
 
         

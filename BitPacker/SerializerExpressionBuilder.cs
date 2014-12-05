@@ -104,7 +104,7 @@ namespace BitPacker
             if (objectDetails.IsCustomType)
                 return this.SerializeCustomType(context);
 
-            throw new Exception(String.Format("Don't know how to serialize type {0}", objectDetails.Type.Name));
+            throw new Exception(String.Format("Don't know how to serialize type {0}. Is it missing a [BitPackerObject] attribute?", objectDetails.Type.Name));
         }
 
         public TypeDetails SerializeCustomType(TranslationContext context)
@@ -123,7 +123,7 @@ namespace BitPacker
 
             var blockMembers = typeDetails.Select(x => x.OperationExpression);
 
-            result = Expression.Block(blockMembers.Where(x => x != null));
+            result = Expression.Block(blockMembers.Where(x => x != null).DefaultIfEmpty(Expression.Empty()));
 
             return new TypeDetails(typeDetails.All(x => x.HasFixedSize), typeDetails.Sum(x => x.MinSize), result);
         }

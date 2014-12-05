@@ -15,16 +15,17 @@ namespace Sandbox
         {
             var buffer = BitPackerTranslate.Serialize(new TestClass()
             {
+                Enum = Test.Bar,
                 //StringLength = 10,
                 //StringMember = "testy",
-                Test = new TestSubClass()
-                {
-                    SubSubClass = new TestSubSubClass()
-                    {
-                        TheArray = new[] { 1, 2, 3 }
-                    }
-                },
-                OtherSubClass = new TestOtherSubClass()
+                //Test = new TestSubClass()
+                //{
+                //    SubSubClass = new TestSubSubClass()
+                //    {
+                //        TheArray = new[] { 1, 2, 3 }
+                //    }
+                //},
+                //OtherSubClass = new TestOtherSubClass()
                 //SubClass = new TestSubClass()
                 //{
                 //    FloatField = 5.0f
@@ -50,7 +51,7 @@ namespace Sandbox
         }
     }
 
-    public enum Test { Foo, Bar };
+    public enum Test { Foo, Bar = 256 };
 
     [BitPackerObject(Endianness = Endianness.LittleEndian)]
     public class TestClass
@@ -61,16 +62,17 @@ namespace Sandbox
         //[BitPackerArrayLength(LengthKey = "test")]
         //public int StringLength { get; set; }
 
-        //[BitPackerString(Encoding = "ASCII", NullTerminated = true)]
+        //[BitPackerString(NullTerminated = true, Length = 5)]
         //public string StringMember { get; set; }
 
-        [BitPackerMember]
-        public TestOtherSubClass OtherSubClass { get; set; }
+        //[BitPackerMember]
+        //public TestOtherSubClass OtherSubClass { get; set; }
 
-        [BitPackerMember]
-        public TestSubClass Test { get; set; }
+        //[BitPackerMember]
+        //public TestSubClass Test { get; set; }
 
-        
+        [BitPackerEnum(EnumType = typeof(byte))]
+        public Test Enum { get; set; }
             
         
 

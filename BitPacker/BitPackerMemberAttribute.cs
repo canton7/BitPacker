@@ -11,7 +11,7 @@ namespace BitPacker
     public class BitPackerMemberAttribute : Attribute
     {
         public int Order { get; set; }
-        public Type EnumType { get; set; }
+        
         internal bool SerializeInternal { get; set; }
         public Type CustomSerializer { get; set; }
         public Type CustomDeserializer { get; set; }
@@ -30,7 +30,17 @@ namespace BitPacker
         }
     }
 
-    [AttributeUsage(AttributeTargets.Property, Inherited = false, AllowMultiple = true)]
+    [AttributeUsage(AttributeTargets.Property, Inherited = false, AllowMultiple = false)]
+    public sealed class BitPackerEnumAttribute : BitPackerMemberAttribute
+    {
+        public Type EnumType { get; set; }
+
+        public BitPackerEnumAttribute([CallerLineNumber] int order = 0)
+            : base(order)
+        { }
+    }
+
+    [AttributeUsage(AttributeTargets.Property, Inherited = false, AllowMultiple = false)]
     public class BitPackerArrayAttribute : BitPackerMemberAttribute
     {
         public string LengthKey { get; set; }
@@ -41,7 +51,7 @@ namespace BitPacker
         { }
     }
 
-    [AttributeUsage(AttributeTargets.Property, Inherited = false, AllowMultiple = true)]
+    [AttributeUsage(AttributeTargets.Property, Inherited = false, AllowMultiple = false)]
     public sealed class BitPackerArrayLengthAttribute : BitPackerMemberAttribute
     {
         public string LengthKey { get; set; }
@@ -56,7 +66,7 @@ namespace BitPacker
         { }
     }
 
-    [AttributeUsage(AttributeTargets.Property, Inherited = false, AllowMultiple =false)]
+    [AttributeUsage(AttributeTargets.Property, Inherited = false, AllowMultiple = false)]
     public sealed class BitPackerStringAttribute : BitPackerArrayAttribute
     {
         public string Encoding { get; set; }
