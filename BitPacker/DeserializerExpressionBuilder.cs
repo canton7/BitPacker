@@ -289,14 +289,24 @@ namespace BitPacker
             Expression paddingLoop = Expression.Empty();
             if (arrayPaddingLength != null)
             {
-                var paddingLoopVar = Expression.Variable(typeof(int), "loopVar");
-                paddingLoop = ExpressionHelpers.For(
-                    paddingLoopVar,
-                    Expression.Constant(0),
-                    Expression.LessThan(paddingLoopVar, arrayPaddingLength),
-                    Expression.PostIncrementAssign(paddingLoopVar),
-                    typeDetails.OperationExpression
-                );
+                // If it's got a fixed size, we can just call ReadBytes once for the whole lot
+                if (typeDetails.HasFixedSize)
+                {
+                    var readBytesMethod = typeof(BinaryReader).GetMethod("ReadBytes", new[] { typeof(int) });
+                    var readLength = Expression.Multiply(Expression.Constant(typeDetails.MinSize), arrayPaddingLength);
+                    paddingLoop = Expression.Call(this.reader, readBytesMethod, readLength);
+                }
+                else
+                {
+                    var paddingLoopVar = Expression.Variable(typeof(int), "loopVar");
+                    paddingLoop = ExpressionHelpers.For(
+                        paddingLoopVar,
+                        Expression.Constant(0),
+                        Expression.LessThan(paddingLoopVar, arrayPaddingLength),
+                        Expression.PostIncrementAssign(paddingLoopVar),
+                        typeDetails.OperationExpression
+                    );
+                }
             }
 
             var block = Expression.Block(new[] { subject },

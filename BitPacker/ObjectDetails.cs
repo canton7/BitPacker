@@ -223,7 +223,7 @@ namespace BitPacker
             if (arrayLengthAttribute != null)
             {
                 if (!PrimitiveTypes.IsPrimitive(this.Type) || !PrimitiveTypes.Types[this.Type].IsIntegral)
-                    throw new Exception("Properties decorated with BitPackerArrayLength must be integer");
+                    throw new Exception("Properties decorated with BitPackerArrayLength must be integral");
 
                 this.lengthKey = arrayLengthAttribute.LengthKey;
             }

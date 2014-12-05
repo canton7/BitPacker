@@ -17,7 +17,7 @@ namespace Sandbox
             {
                 //StringLength = 10,
                 //StringMember = "testy",
-                Test = double.NaN
+                Testy = new[] {  1, 2, 3 }
                 //SubClass = new TestSubClass()
                 //{
                 //    FloatField = 5.0f
@@ -57,8 +57,13 @@ namespace Sandbox
         //[BitPackerString(Encoding = "ASCII", NullTerminated = true)]
         //public string StringMember { get; set; }
 
-        [BitPackerMember]
-        public double Test { get; set; }
+        [BitPackerArrayLength(LengthKey = "key")]
+        public int Test { get; set; }
+
+        [BitPackerArray(Length = 10, LengthKey = "key")]
+        public int[] Testy { get; set; }
+
+
 
         //[BitPackerArrayLength(LengthKey = "key")]
         //public int Length
@@ -66,8 +71,7 @@ namespace Sandbox
         //    get { return 3; }
         //}
 
-        //[BitPackerArray(LengthKey = "key")]
-        //public int[] Testy { get; set; }
+        
     }
 
     [BitPackerObject]
