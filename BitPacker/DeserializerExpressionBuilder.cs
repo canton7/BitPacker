@@ -186,7 +186,7 @@ namespace BitPacker
             }
             else
             {
-                throw new Exception("Unknown length for array");
+                throw new BitPackerTranslationException(context.GetMemberPath(), new Exception("Unknown length for array"));
             }
 
             var typeDetails = this.DeserializeValue(context.Push(objectDetails.ElementObjectDetails, subject, "[]"));

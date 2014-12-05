@@ -64,17 +64,32 @@ namespace BitPacker
             return loop;
         }
 
-        public static Expression LengthOfEnumerable(Expression collection, Type elementType)
+        public static Expression ForElementsInArray(ParameterExpression loopVar, Expression array, Expression loopContent)
         {
-            //var method = typeof(Enumerable).GetMethods().Single(x => x.Name == "Count" && x.GetParameters().Length == 1);
-            return Expression.Call(typeof(Enumerable), "Count", new[] { elementType }, collection);
+            var i = Expression.Variable(typeof(int), "i");
+            var length = Expression.ArrayLength(array);
+
+            var ourLoopContent = Expression.Block(new[] { loopVar },
+                Expression.Assign(loopVar, Expression.ArrayAccess(array, i)),
+                loopContent
+            );
+
+            return For(i, Expression.Constant(0), Expression.LessThan(i, length), Expression.PostIncrementAssign(i), ourLoopContent);
+        }
+
+        public static Expression LengthOfEnumerable(Expression collection, ObjectDetails objectDetails)
+        {
+            if (objectDetails.Type.IsArray)
+                return Expression.ArrayLength(collection);
+            if (objectDetails.IsString)
+                return Expression.Property(collection, "Length");
+            return Expression.Call(typeof(Enumerable), "Count", new[] { objectDetails.ElementType }, collection);
         }
 
         public static Expression TryTranslate(Expression block, List<string> memberPath)
         {
             var e = Expression.Parameter(typeof(Exception), "e");
-            var ctor = typeof(BitPackerTranslationException).GetConstructor(new[] { typeof(List<string>), typeof(Exception) });
-            var exception = Expression.New(ctor, Expression.Constant(memberPath), e);
+            var exception = MakeBitPackerTranslationException(memberPath, e);
 
             var eToRethrow = Expression.Parameter(typeof(BitPackerTranslationException), "e");
 
@@ -92,6 +107,12 @@ namespace BitPacker
                     )
                 )
             );
+        }
+
+        public static Expression MakeBitPackerTranslationException(List<string> memberPath, Expression innerException)
+        {
+            var ctor = typeof(BitPackerTranslationException).GetConstructor(new[] { typeof(List<string>), typeof(Exception) });
+            return Expression.New(ctor, Expression.Constant(memberPath), innerException);
         }
 
         public static Expression StringFormat(string format, params Expression[] args)

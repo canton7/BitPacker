@@ -17,7 +17,7 @@ namespace BitPacker
         }
 
         public BitPackerTranslationException(List<string> memberPath, Exception innerException)
-            : base(String.Format("Error translating field {0}", String.Join(".", memberPath)), innerException)
+            : base(String.Format("Error translating field {0}. See InnerException for details", String.Join(".", memberPath)), innerException)
         {
             this.MemberPath = memberPath.AsReadOnly();
         }

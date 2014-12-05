@@ -75,7 +75,7 @@ namespace BitPacker
                     group.LengthFields[0].Value,
                     ExpressionHelpers.LengthOfEnumerable(
                         group.Arrays[0].Value,
-                        group.Arrays[0].ObjectDetails.ElementType
+                        group.Arrays[0].ObjectDetails
                     )
                 );
             });
@@ -88,6 +88,9 @@ namespace BitPacker
         private TypeDetails SerializeValue(TranslationContext context)
         {
             var objectDetails = context.ObjectDetails;
+
+            if (objectDetails.IsString)
+                return this.SerializeString(context);
 
             if (objectDetails.IsEnumerable)
                 return this.SerializeEnumerable(context);
@@ -154,6 +157,36 @@ namespace BitPacker
             return this.SerializePrimitive(newContext);
         }
 
+        private TypeDetails SerializeString(TranslationContext context)
+        {
+            var encoding = Expression.Constant(context.ObjectDetails.Encoding);
+            var str = context.Subject;
+
+            var blockMembers = new List<Expression>();
+
+            var getByteCountMethod = typeof(Encoding).GetMethod("GetByteCount", new[] { typeof(string) });
+            var numBytes = Expression.Call(encoding, getByteCountMethod, str);
+            var byteArrayVar = Expression.Variable(typeof(byte[]), "bytes");
+            var paddingBytes = context.ObjectDetails.NullTerminated ? 1 : 0;
+            var arrayInit = Expression.NewArrayBounds(typeof(byte), Expression.Add(numBytes, Expression.Constant(paddingBytes)));
+            var arrayAssign = Expression.Assign(byteArrayVar, arrayInit);
+            var getBytesMethod = typeof(Encoding).GetMethod("GetBytes", new[] { typeof(string), typeof(int), typeof(int), typeof(byte[]), typeof(int) });
+            var strLength = Expression.Property(str, "Length");
+            var getBytesCall = Expression.Call(encoding, getBytesMethod, str, Expression.Constant(0), strLength, byteArrayVar, Expression.Constant(0));
+
+            var typeDetails = this.SerializeEnumerable(context.Push(context.ObjectDetails, byteArrayVar, "[]"));
+
+            var block = Expression.Block(new[] { byteArrayVar },
+                arrayAssign,
+                getBytesCall,
+                typeDetails.OperationExpression
+            );
+
+            return new TypeDetails(typeDetails.HasFixedSize, typeDetails.MinSize, block);
+
+            //var  this.SerializeEnumerable(context.Push(context.ObjectDetails, call, "bytes"));
+        }
+
         private TypeDetails SerializeEnumerable(TranslationContext context)
         {    
             var objectDetails = context.ObjectDetails;
@@ -170,11 +203,11 @@ namespace BitPacker
                 lengthVar = Expression.Variable(typeof(int), "length");
                 blockVars.Add(lengthVar);
 
-                var enumerableLength = ExpressionHelpers.LengthOfEnumerable(enumerable, objectDetails.ElementType);
+                var enumerableLength = ExpressionHelpers.LengthOfEnumerable(enumerable, objectDetails);
                 blockMembers.Add(ExpressionHelpers.TryTranslate(Expression.Assign(lengthVar, enumerableLength), context.GetMemberPath()));
 
                 var test = Expression.GreaterThan(lengthVar, Expression.Constant(objectDetails.EnumerableLength));
-                var throwExpr = Expression.Throw(Expression.Constant(new Exception("You specified an explicit length for an array member, but the actual member is longer")));
+                var throwExpr = Expression.Throw(ExpressionHelpers.MakeBitPackerTranslationException(context.GetMemberPath(), Expression.Constant(new Exception("You specified an explicit length for an array member, but the actual member is longer"))));
                 blockMembers.Add(Expression.IfThen(test, throwExpr));
             }
 
@@ -182,7 +215,12 @@ namespace BitPacker
 
             var loopVar = Expression.Variable(objectDetails.ElementType, "loopVariable");
             var typeDetails = this.SerializeValue(context.Push(objectDetails.ElementObjectDetails, loopVar, "[]"));
-            blockMembers.Add(ExpressionHelpers.TryTranslate(ExpressionHelpers.ForEach(enumerable, objectDetails.ElementType, loopVar, typeDetails.OperationExpression), context.GetMemberPath()));
+            Expression loop;
+            if (objectDetails.Type.IsArray || objectDetails.Type == typeof(string))
+                loop = ExpressionHelpers.ForElementsInArray(loopVar, enumerable, typeDetails.OperationExpression);
+            else
+                loop = ExpressionHelpers.ForEach(enumerable, objectDetails.ElementType, loopVar, typeDetails.OperationExpression);
+            blockMembers.Add(ExpressionHelpers.TryTranslate(loop, context.GetMemberPath()));
 
             // If it's a fixed-length array, we might need to pad it out
             // if (lengthVar < property.EnumerableLength)

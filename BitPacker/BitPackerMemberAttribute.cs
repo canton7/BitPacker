@@ -31,7 +31,7 @@ namespace BitPacker
     }
 
     [AttributeUsage(AttributeTargets.Property, Inherited = false, AllowMultiple = true)]
-    public sealed class BitPackerArrayAttribute : BitPackerMemberAttribute
+    public class BitPackerArrayAttribute : BitPackerMemberAttribute
     {
         public string LengthKey { get; set; }
         public int Length { get; set; }
@@ -52,6 +52,17 @@ namespace BitPacker
         }
 
         public BitPackerArrayLengthAttribute([CallerLineNumber] int order = 0)
+            : base(order)
+        { }
+    }
+
+    [AttributeUsage(AttributeTargets.Property, Inherited = false, AllowMultiple =false)]
+    public sealed class BitPackerStringAttribute : BitPackerArrayAttribute
+    {
+        public string Encoding { get; set; }
+        public bool NullTerminated { get; set; }
+
+        public BitPackerStringAttribute([CallerLineNumber] int order = 0)
             : base(order)
         { }
     }

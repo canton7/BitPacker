@@ -19,6 +19,8 @@ namespace BitPacker
         protected readonly BitPackerMemberAttribute propertyAttribute;
         protected readonly string lengthKey;
         protected readonly int length;
+        protected readonly Encoding encoding;
+        protected readonly bool nullTerminated;
         protected readonly EnumerableElementObjectDetails elementObjectDetails;
         protected readonly EnumObjectDetails enumEquivalentObjectDetails;
         protected readonly Type customSerializer;
@@ -59,9 +61,34 @@ namespace BitPacker
             get { return this.properties != null; }
         }
 
+        public bool IsString
+        {
+            get { return this.Type == typeof(string); }
+        }
+
+        public Encoding Encoding
+        {
+            get
+            {
+                if (!this.IsString)
+                    throw new InvalidOperationException("Not a string");
+                return this.encoding;
+            }
+        }
+
+        public bool NullTerminated
+        {
+            get
+            {
+                if (!this.IsString)
+                    throw new InvalidOperationException("Not a string");
+                return this.nullTerminated;
+            }
+        }
+
         public bool IsEnumerable
         {
-            get { return this.Type.IsArray || this.Type.Implements(typeof(IEnumerable<>)); }
+            get { return this.IsString || this.Type.IsArray || this.Type.Implements(typeof(IEnumerable<>)); }
         }
 
         public Type ElementType
@@ -70,6 +97,8 @@ namespace BitPacker
             {
                 if (!this.IsEnumerable)
                     throw new InvalidOperationException("Not Enumerable");
+                if (this.IsString)
+                    return typeof(byte);
                 return this.Type.IsArray ? this.Type.GetElementType() : this.Type.GetGenericArguments()[0];
             }
         }
@@ -153,10 +182,27 @@ namespace BitPacker
                 this.CheckEnum();
             }
 
+            // Strings are a special sort of array, reeeeally...
+            // Strings have a bit extra - so handle that, then let the array handling kick in
+
+            var stringAttribute = propertyAttribute as BitPackerStringAttribute;
+            if (stringAttribute != null && !isAttributeCascaded)
+            {
+                if (!this.IsString)
+                    throw new Exception("BitPackerString can only be applied to properties which are strings");
+
+                this.encoding = Encoding.GetEncoding(stringAttribute.Encoding);
+                this.nullTerminated = stringAttribute.NullTerminated;
+            }
+            else if (this.IsString)
+            {
+                throw new Exception("String properties must be decorated with BitPackerString");
+            }
+
             var arrayAttribute = propertyAttribute as BitPackerArrayAttribute;
             if (arrayAttribute != null && !isAttributeCascaded)
             {
-                if (!this.IsEnumerable)
+                if (!this.IsEnumerable && !this.IsString)
                     throw new Exception("BitPackerArray can only be applied to properties which are arrays or IEnumerable<T>");
 
                 this.elementObjectDetails = new EnumerableElementObjectDetails(this.ElementType, this.propertyAttribute, this.Endianness);
