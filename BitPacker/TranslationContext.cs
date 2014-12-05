@@ -54,15 +54,21 @@ namespace BitPacker
         public bool TryFindLengthKey(string key, out PropertyObjectDetails objectDetails, out Expression subject)
         {
             PropertyObjectDetails lengthField;
+            int orderMustBeLessThan = this.ObjectDetails.Order;
 
             foreach (var step in this.stack)
             {
                 if (step.ObjectDetails.IsCustomType && step.ObjectDetails.LengthFields.TryGetValue(key, out lengthField))
                 {
+                    if (lengthField.Order >= orderMustBeLessThan)
+                        throw new Exception(String.Format("Found length key '{0}', but it appears after the array it's acting as the length for", key));
+
                     objectDetails = lengthField;
                     subject = step.Subject;
                     return true;
                 }
+
+                orderMustBeLessThan = step.ObjectDetails.Order;
             }
 
             objectDetails = null;

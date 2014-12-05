@@ -57,12 +57,13 @@ namespace Sandbox
         //[BitPackerString(Encoding = "ASCII", NullTerminated = true)]
         //public string StringMember { get; set; }
 
-        [BitPackerArrayLength(LengthKey = "key")]
-        public int Test { get; set; }
+        [BitPackerMember]
+        public TestSubClass Test { get; set; }
 
-        [BitPackerArray(Length = 10, LengthKey = "key")]
+        [BitPackerArray(LengthKey = "key")]
         public int[] Testy { get; set; }
 
+       
 
 
         //[BitPackerArrayLength(LengthKey = "key")]
@@ -77,21 +78,8 @@ namespace Sandbox
     [BitPackerObject]
     public class TestSubClass
     {
-        //[BitPackerMember]
-        //public float FloatField { get; set; }
-
-        //[BitPackerMember]
-        //public int IntField { get; set; }
-
-        //[BitPackerMember]
-        //public int AnotherIntField { get; set; }
-
-        [BitPackerMember]
-        public int IntField
-        {
-            get;
-            set;
-        }
+        [BitPackerArrayLength(LengthKey = "key")]
+        public int IntField { get; set; }
     }
 
     [BitPackerObject]

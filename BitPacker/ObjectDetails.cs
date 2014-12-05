@@ -138,6 +138,11 @@ namespace BitPacker
             get { return this.propertyAttribute.SerializeInternal; }
         }
 
+        public int Order
+        {
+            get { return this.propertyAttribute.Order; }
+        }
+
         public Type CustomSerializer
         {
             get { return this.customSerializer; }
