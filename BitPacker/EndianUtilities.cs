@@ -13,12 +13,18 @@ namespace BitPacker
 
         public static ushort Swap(ushort val)
         {
-            return (ushort)(((val & 0xFF00) >> 8) | ((val & 0x00FF) << 8));
+            unchecked
+            {
+                return (ushort)(((val & 0xFF00) >> 8) | ((val & 0x00FF) << 8));
+            }
         }
 
         public static short Swap(short val)
         {
-            return (short)Swap((ushort)val);
+            unchecked
+            {
+                return (short)Swap((ushort)val);
+            }
         }
 
         public static uint Swap(uint val)
@@ -33,7 +39,10 @@ namespace BitPacker
 
         public static int Swap(int val)
         {
-            return (int)Swap((uint)val);
+            unchecked
+            {
+                return (int)Swap((uint)val);
+            }
         }
 
         public static ulong Swap(ulong val)
@@ -49,13 +58,17 @@ namespace BitPacker
 
         public static long Swap(long val)
         {
-            return (long)Swap((ulong)val);
+            unchecked
+            {
+                return (long)Swap((ulong)val);
+            }
         }
 
         public static float Swap(float val)
         {
             // Alternatives are BitConverter.ToSingle(BitConverter.GetBytes(val).Reverse().ToArray(), 0)
             // and BitConverter.ToSingle(BitConverter.GetBytes(Swap(BitConverter.ToInt32(BitConverter.GetBytes(val), 0))), 0)
+            // Neither's particularly efficient however
             return ToSingle(Swap(ToInt32(val)));
         }
 
