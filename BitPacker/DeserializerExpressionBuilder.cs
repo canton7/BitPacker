@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
@@ -65,6 +66,9 @@ namespace BitPacker
         private TypeDetails DeserializeValue(TranslationContext context)
         {
             var objectDetails = context.ObjectDetails;
+            if (objectDetails.IsString)
+                return this.DeserializeString(context);
+
             if (objectDetails.IsEnumerable)
                 return this.DeserializeEnumerable(context);
 
@@ -146,18 +150,13 @@ namespace BitPacker
             return new TypeDetails(typeDetails.HasFixedSize, typeDetails.MinSize, value);
         }
 
-        private TypeDetails DeserializeEnumerable(TranslationContext context)
+        private Expression GetArrayLength(TranslationContext context, out Expression arrayPaddingLength)
         {
             var objectDetails = context.ObjectDetails;
-
-            bool hasFixedLength = objectDetails.EnumerableLength > 0;
-
-            var subject = Expression.Parameter(objectDetails.Type, String.Format("enumerableOf{0}", objectDetails.ElementType.Name));
-            Expression arrayInit;
             Expression arrayLength;
-            Expression arrayPaddingLength = null;
+            bool hasFixedLength = objectDetails.EnumerableLength > 0;
+            arrayPaddingLength = null;
 
-            // Is it variable legnth?
             if (objectDetails.LengthKey != null)
             {
                 PropertyObjectDetails lengthField;
@@ -166,10 +165,6 @@ namespace BitPacker
                     throw new Exception(String.Format("Could not find integer field with Length Key {0}", objectDetails.LengthKey));
 
                 arrayLength = lengthField.AccessExpression(lengthFieldValue);
-                arrayInit = Expression.Assign(
-                    subject,
-                    CreateListOrArray(objectDetails, arrayLength)
-                );
 
                 // If it has both fixed and variable-length attributes, then there's padding at the end of it
                 if (hasFixedLength)
@@ -178,16 +173,107 @@ namespace BitPacker
             else if (hasFixedLength)
             {
                 arrayLength = Expression.Constant(objectDetails.EnumerableLength);
-                arrayInit = Expression.Assign(
-                    subject,
-                    CreateListOrArray(objectDetails, arrayLength)
-                );
-                
             }
             else
             {
                 throw new BitPackerTranslationException(context.GetMemberPath(), new Exception("Unknown length for array"));
             }
+
+            return arrayLength;
+        }
+
+        public TypeDetails DeserializeString(TranslationContext context)
+        {
+            var objectDetails = context.ObjectDetails;
+            var encoding = Expression.Constant(objectDetails.Encoding);
+            bool hasFixedLength = objectDetails.EnumerableLength > 0;
+            var getStringMethod = typeof(Encoding).GetMethod("GetString", new[] { typeof(byte[]) });
+            BlockExpression block;
+
+            // Riiight... So. It's either got a length, or it's an ASCII null-terminated string
+            // The length option is easy...
+            if (hasFixedLength || objectDetails.LengthKey != null)
+            {
+                Expression arrayPaddingLength;
+                var arrayLength = this.GetArrayLength(context, out arrayPaddingLength);
+                var blockMembers = new List<Expression>();
+
+                var readBytesMethod = typeof(BinaryReader).GetMethod("ReadBytes", new[] { typeof(int) });
+                var bytesArrayVar = Expression.Variable(typeof(byte[]), "bytes");
+                blockMembers.Add(Expression.Assign(bytesArrayVar, Expression.Call(this.reader, readBytesMethod, arrayLength)));
+                if (arrayPaddingLength != null)
+                    blockMembers.Add(Expression.Call(this.reader, readBytesMethod, arrayPaddingLength));
+
+                var stringRead = Expression.Call(encoding, getStringMethod, bytesArrayVar);
+
+                // If it's ASCII, trim the NULLs
+                if (objectDetails.Encoding == Encoding.ASCII)
+                {
+                    var trimMethod = typeof(string).GetMethod("TrimEnd", new[] { typeof(char[]) });
+                    blockMembers.Add(Expression.Call(stringRead, trimMethod, Expression.NewArrayInit(typeof(char), Expression.Constant('\0'))));
+                }
+                else
+                {
+                    blockMembers.Add(stringRead);
+                }
+
+                block = Expression.Block(new[] { bytesArrayVar }, blockMembers);
+            }
+            else
+            {
+                Trace.Assert(objectDetails.Encoding == Encoding.ASCII); // ObjectDetails should have ensured this for us
+                // We've no choice but to walk the thing. Thankfully we know it's ASCII
+                // Once we find a null byte, that null's the last character of the string - but we don't know how long it's going to be....
+
+                var listCtor = typeof(List<byte>).GetConstructor(new Type[0]);
+                var listVar = Expression.Variable(typeof(List<byte>), "bytes");
+                var listAssign = Expression.Assign(listVar, Expression.New(listCtor));
+
+                var breakLabel = Expression.Label("LoopBreak");
+                var byteVar = Expression.Variable(typeof(byte), "byte");
+                var readByteMethod = typeof(BinaryReader).GetMethod("ReadByte");
+                var listAddMethod = typeof(List<byte>).GetMethod("Add", new[] { typeof(byte) });
+
+                var loopContents = Expression.Block(new[] { byteVar },
+                    Expression.Assign(byteVar, Expression.Call(this.reader, readByteMethod)),
+                    Expression.IfThenElse(
+                        Expression.Equal(byteVar, Expression.Constant((byte)0)),
+                        Expression.Break(breakLabel),
+                        Expression.Call(listVar, listAddMethod, byteVar)
+                    )
+                );
+
+                var loop = Expression.Loop(loopContents, breakLabel);
+
+                var toArrayMethod = typeof(List<byte>).GetMethod("ToArray", new Type[0]);
+                var toArrayCall = Expression.Call(listVar, toArrayMethod);
+                var stringRead = Expression.Call(encoding, getStringMethod, toArrayCall);
+
+                block = Expression.Block(new[] { listVar },
+                    listAssign,
+                    loop,
+                    stringRead
+                );
+            }
+
+            return new TypeDetails(hasFixedLength, hasFixedLength ? objectDetails.EnumerableLength : 0, block);
+        }
+
+        private TypeDetails DeserializeEnumerable(TranslationContext context)
+        {
+            var objectDetails = context.ObjectDetails;
+
+            bool hasFixedLength = objectDetails.EnumerableLength > 0;
+
+            var subject = Expression.Parameter(objectDetails.Type, String.Format("enumerableOf{0}", objectDetails.ElementType.Name));
+            Expression arrayInit;
+            Expression arrayPaddingLength;
+            var arrayLength = this.GetArrayLength(context, out arrayPaddingLength);
+
+            arrayInit = Expression.Assign(
+                subject,
+                this.CreateListOrArray(objectDetails, arrayLength)
+            );
 
             var typeDetails = this.DeserializeValue(context.Push(objectDetails.ElementObjectDetails, subject, "[]"));
 

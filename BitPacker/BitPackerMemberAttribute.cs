@@ -64,6 +64,8 @@ namespace BitPacker
 
         public BitPackerStringAttribute([CallerLineNumber] int order = 0)
             : base(order)
-        { }
+        {
+            this.Encoding = "ASCII";
+        }
     }
 }

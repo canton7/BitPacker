@@ -35,7 +35,8 @@ namespace BitPacker
                         ),
                         Expression.Break(breakLabel)
                     ),
-                breakLabel)
+                    breakLabel
+                )
             );
 
             return loop;
@@ -58,7 +59,8 @@ namespace BitPacker
                         ),
                         Expression.Break(breakLabel)
                     ),
-                breakLabel)
+                    breakLabel
+                )
             );
 
             return loop;

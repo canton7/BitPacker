@@ -192,6 +192,11 @@ namespace BitPacker
                     throw new Exception("BitPackerString can only be applied to properties which are strings");
 
                 this.encoding = Encoding.GetEncoding(stringAttribute.Encoding);
+                if (this.encoding != Encoding.ASCII && (stringAttribute.Length == 0 || stringAttribute.LengthKey == null))
+                    throw new Exception("Non-ASCII need either a Length property or a LengthKey property");
+                if (this.encoding == Encoding.ASCII && stringAttribute.Length == 0 && stringAttribute.LengthKey == null && !stringAttribute.NullTerminated)
+                    throw new Exception("ASCII strings must either be null-terminated, or have a Length or LengthKey property");
+
                 this.nullTerminated = stringAttribute.NullTerminated;
             }
             else if (this.IsString)

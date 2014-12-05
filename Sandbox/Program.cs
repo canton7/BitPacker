@@ -16,7 +16,8 @@ namespace Sandbox
             var buffer = BitPackerTranslate.Serialize(new TestClass()
             {
                 //StringLength = 10,
-                StringMember = "testy"
+                StringMember = "testy",
+                Test = Int32.MaxValue,
                 //SubClass = new TestSubClass()
                 //{
                 //    FloatField = 5.0f
@@ -53,8 +54,11 @@ namespace Sandbox
         //[BitPackerArrayLength(LengthKey = "test")]
         //public int StringLength { get; set; }
 
-        [BitPackerString(Encoding = "ASCII", NullTerminated = true, Length = 5)]
+        [BitPackerString(Encoding = "ASCII", NullTerminated = true)]
         public string StringMember { get; set; }
+
+        [BitPackerMember]
+        public int Test { get; set; }
 
         //[BitPackerArrayLength(LengthKey = "key")]
         //public int Length
