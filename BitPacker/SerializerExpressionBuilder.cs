@@ -44,7 +44,7 @@ namespace BitPacker
                 .Select(x => new PropertyObjectDetailsWithAccess(x.Value, x.Value.AccessExpression(subject)))
                 .Concat(objectDetails.RecursiveFlatPropertyAccess(subject)
                     .Where(x => x.ObjectDetails.IsCustomType)
-                    .SelectMany(x => x.ObjectDetails.LengthFields.Select(y => new PropertyObjectDetailsWithAccess(y.Value, x.Value))));
+                    .SelectMany(x => x.ObjectDetails.LengthFields.Select(y => new PropertyObjectDetailsWithAccess(y.Value, y.Value.AccessExpression(x.Value)))));
 
             var allKeys = arrays.Select(x => x.ObjectDetails.LengthKey).Concat(lengthFields.Select(x => x.ObjectDetails.LengthKey)).Distinct();
 

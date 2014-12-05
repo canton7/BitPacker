@@ -25,7 +25,7 @@ namespace BitPacker
         {
             var subject = Expression.Parameter(this.objectType, "rootSubject");
 
-            var objectDetails = new ObjectDetails(this.objectType, new BitPackerMemberAttribute());
+            var objectDetails = new ObjectDetails(this.objectType, new BitPackerMemberAttribute(0));
             objectDetails.Discover();
 
             // First, we need to make sure it's fully constructed
@@ -160,11 +160,8 @@ namespace BitPacker
             if (objectDetails.LengthKey != null)
             {
                 PropertyObjectDetails lengthField;
-                Expression lengthFieldValue;
-                if (!context.TryFindLengthKey(objectDetails.LengthKey, out lengthField, out lengthFieldValue))
+                if (!context.TryFindLengthKey(objectDetails.LengthKey, out arrayLength))
                     throw new Exception(String.Format("Could not find integer field with Length Key {0}", objectDetails.LengthKey));
-
-                arrayLength = lengthField.AccessExpression(lengthFieldValue);
 
                 // If it has both fixed and variable-length attributes, then there's padding at the end of it
                 if (hasFixedLength)

@@ -51,7 +51,7 @@ namespace BitPacker
             return new TranslationContext(objectDetails, this.stack.Push(new TranslationStepContext(this.ObjectDetails, subject, memberName)));
         }
 
-        public bool TryFindLengthKey(string key, out PropertyObjectDetails objectDetails, out Expression subject)
+        public bool TryFindLengthKey(string key, out Expression memberAccess)
         {
             PropertyObjectDetails lengthField;
             int orderMustBeLessThan = this.ObjectDetails.Order;
@@ -63,18 +63,46 @@ namespace BitPacker
                     if (lengthField.Order >= orderMustBeLessThan)
                         throw new Exception(String.Format("Found length key '{0}', but it appears after the array it's acting as the length for", key));
 
-                    objectDetails = lengthField;
-                    subject = step.Subject;
+                    memberAccess = lengthField.AccessExpression(step.Subject);
                     return true;
                 }
+
+                var childCandidatesOfThisStep = (from property in step.ObjectDetails.Properties
+                                                let order = property.Order
+                                                let propertyAccess = property.AccessExpression(step.Subject)
+                                                from recursiveProperty in new[] { new PropertyObjectDetailsWithAccess(property, propertyAccess) }
+                                                    .Concat(property.RecursiveFlatPropertyAccess(propertyAccess))
+                                                where recursiveProperty.ObjectDetails.IsCustomType
+                                                from subLengthField in recursiveProperty.ObjectDetails.LengthFields
+                                                select new
+                                                {
+                                                    Order = order,
+                                                    Details = new PropertyObjectDetailsWithAccess(subLengthField.Value, subLengthField.Value.AccessExpression(recursiveProperty.Value))
+                                                }).ToArray();
+
+                if (childCandidatesOfThisStep.Length > 1)
+                    throw new Exception(String.Format("Found more than one property with length key '{0}'", key));
+
+                if (childCandidatesOfThisStep.Length == 1)
+                {
+                    var candidate = childCandidatesOfThisStep[0];
+
+                    // In order for us to accept this, the object which ultimately holds the length key must be before us
+                    if (candidate.Order >= orderMustBeLessThan)
+                        throw new Exception(String.Format("Found length key '{0}', but it appears after the array it's acting as the length for", key));
+
+                    memberAccess = candidate.Details.Value;
+                    return true;
+                }
+
 
                 orderMustBeLessThan = step.ObjectDetails.Order;
             }
 
-            objectDetails = null;
-            subject = null;
+            memberAccess = null;
             return false;
         }
+
 
         public List<string> GetMemberPath()
         {

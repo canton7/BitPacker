@@ -17,7 +17,14 @@ namespace Sandbox
             {
                 //StringLength = 10,
                 //StringMember = "testy",
-                Testy = new[] {  1, 2, 3 }
+                Test = new TestSubClass()
+                {
+                    SubSubClass = new TestSubSubClass()
+                    {
+                        TheArray = new[] { 1, 2, 3 }
+                    }
+                },
+                OtherSubClass = new TestOtherSubClass()
                 //SubClass = new TestSubClass()
                 //{
                 //    FloatField = 5.0f
@@ -58,12 +65,14 @@ namespace Sandbox
         //public string StringMember { get; set; }
 
         [BitPackerMember]
+        public TestOtherSubClass OtherSubClass { get; set; }
+
+        [BitPackerMember]
         public TestSubClass Test { get; set; }
 
-        [BitPackerArray(LengthKey = "key")]
-        public int[] Testy { get; set; }
-
-       
+        
+            
+        
 
 
         //[BitPackerArrayLength(LengthKey = "key")]
@@ -78,19 +87,22 @@ namespace Sandbox
     [BitPackerObject]
     public class TestSubClass
     {
-        [BitPackerArrayLength(LengthKey = "key")]
-        public int IntField { get; set; }
+        [BitPackerMember]
+        public TestSubSubClass SubSubClass { get; set; }
     }
 
     [BitPackerObject]
     public class TestSubSubClass
     {
-        [BitPackerMember]
-        public int IntField
-        {
-            get;
-            set;
-        }
+        [BitPackerArray(LengthKey = "key")]
+        public int[] TheArray { get; set; }
+    }
+
+    [BitPackerObject]
+    public class TestOtherSubClass
+    {
+        [BitPackerArrayLength(LengthKey = "key")]
+        public int Length { get; set; }
     }
 
     public class CustomDeserializer : IDeserializer<TestSubClass>
