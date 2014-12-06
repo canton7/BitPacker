@@ -11,6 +11,8 @@ namespace BitPacker
 {
     internal class ObjectDetails
     {
+        protected static readonly Encoding[] nullTerminatedEncodings = new[] { Encoding.ASCII, Encoding.UTF8 };
+
         protected readonly Type type;
         protected Endianness? endianness;
         protected IReadOnlyList<PropertyObjectDetails> properties;
@@ -192,12 +194,17 @@ namespace BitPacker
                     throw new Exception("BitPackerString can only be applied to properties which are strings");
 
                 this.encoding = Encoding.GetEncoding(stringAttribute.Encoding);
-                if (this.encoding != Encoding.ASCII && (stringAttribute.Length == 0 || stringAttribute.LengthKey == null))
-                    throw new Exception("Non-ASCII need either a Length property or a LengthKey property");
-                if (this.encoding == Encoding.ASCII && stringAttribute.Length == 0 && stringAttribute.LengthKey == null && !stringAttribute.NullTerminated)
-                    throw new Exception("ASCII strings must either be null-terminated, or have a Length or LengthKey property");
-
                 this.nullTerminated = stringAttribute.NullTerminated;
+
+                if (stringAttribute.NullTerminated && !nullTerminatedEncodings.Contains(this.encoding))
+                    throw new Exception(String.Format("The only string encodings which may be null-terminated are {0}", String.Join(", ", nullTerminatedEncodings.Select(x => x.EncodingName))));
+                if (!stringAttribute.NullTerminated && (stringAttribute.Length == 0 || stringAttribute.Length == null))
+                {
+                    if (nullTerminatedEncodings.Contains(this.Encoding))
+                        throw new Exception(String.Format("{0} strings must either be null-terminated, to have a Length or Length Key (or both)", stringAttribute.Encoding));
+                    else
+                        throw new Exception(String.Format("{0} strings must either have a Length or LengthKey (or both)", stringAttribute.Encoding));
+                }
             }
             else if (this.IsString)
             {
