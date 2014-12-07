@@ -7,10 +7,13 @@ using System.Threading.Tasks;
 
 namespace BitPacker
 {
-    internal class BitfieldBinaryWriter : BinaryWriter
+    public class BitfieldBinaryWriter : BinaryWriter
     {
         private int scratchBitsInUse;
         private byte bitScratchpad;
+
+        public BitfieldBinaryWriter(Stream output) : base(output)
+        { }
 
         private void FlushBitfield()
         {
@@ -25,36 +28,38 @@ namespace BitPacker
 
         public void WriteBitfield(ulong value, int numBits)
         {
+            ulong mask = ~0UL << numBits;
+            if ((mask & value) > 0)
+                throw new ArgumentException("Value contains bits set above those permitted by numBits");
+            
             int numBitsLeftToWrite = numBits;
             int offsetInValueToWrite = 0;
 
+
             while (numBitsLeftToWrite > 0)
             {
-                int bitsToWrite = Math.Min(sizeof(byte) - this.scratchBitsInUse, numBitsLeftToWrite);
+                int bitsToWrite = Math.Min(8 - this.scratchBitsInUse, numBitsLeftToWrite);
 
-                ulong mask = ~((~0UL) << bitsToWrite);
-                // Bits to write, down in the least significant position
-                byte valueToWrite = (byte)((value >> offsetInValueToWrite) & mask);
-                byte shiftedValueToWrite = (byte)(valueToWrite << this.scratchBitsInUse);
-                this.bitScratchpad |= shiftedValueToWrite;
+                // We've already guarenteed that they don't have any bits set above numBits
+                byte valueToWrite = (byte)((byte)(value >> offsetInValueToWrite) << this.scratchBitsInUse);
+                this.bitScratchpad |= valueToWrite;
 
                 this.scratchBitsInUse += bitsToWrite;
-                if (this.scratchBitsInUse == sizeof(byte))
+                if (this.scratchBitsInUse == 8)
                     this.FlushBitfield();
 
                 numBitsLeftToWrite -= bitsToWrite;
                 offsetInValueToWrite += bitsToWrite;
             }
-
         }
+
+        #region Overrides to call FlushBitfield
 
         public override void Flush()
         {
             this.FlushBitfield();
             base.Flush();
         }
-
-        #region Write Overloads
 
         public override void Write(bool value)
         {

@@ -28,6 +28,7 @@ namespace BitPacker
         protected readonly Type customSerializer;
         protected readonly Type customDeserializer;
         protected readonly Type enumEquivalentType;
+        protected readonly int bitWidth;
 
         public Type Type
         {
@@ -166,6 +167,11 @@ namespace BitPacker
             }
         }
 
+        public int BitWidth
+        {
+            get { return this.bitWidth; }
+        }
+
         public ObjectDetails(Type type, BitPackerMemberAttribute propertyAttribute, Endianness? endianness = null, bool isAttributeCascaded = false)
         {
             this.type = type;
@@ -198,7 +204,7 @@ namespace BitPacker
 
                 if (stringAttribute.NullTerminated && !nullTerminatedEncodings.Contains(this.encoding))
                     throw new Exception(String.Format("The only string encodings which may be null-terminated are {0}", String.Join(", ", nullTerminatedEncodings.Select(x => x.EncodingName))));
-                if (!stringAttribute.NullTerminated && (stringAttribute.Length == 0 || stringAttribute.Length == null))
+                if (!stringAttribute.NullTerminated && (stringAttribute.Length == 0 || stringAttribute.Length == 0))
                 {
                     if (nullTerminatedEncodings.Contains(this.Encoding))
                         throw new Exception(String.Format("{0} strings must either be null-terminated, to have a Length or Length Key (or both)", stringAttribute.Encoding));
@@ -226,12 +232,19 @@ namespace BitPacker
                 throw new Exception("Arrays or IEnumerable<T> properties must be decorated with BitPackerArray, not BitPackerMember");
             }
 
+            var integerAttribute = propertyAttribute as BitPackerIntegerAttribute;
+            if (integerAttribute != null)
+            {
+                if (!PrimitiveTypes.IsPrimitive(this.Type) || !PrimitiveTypes.Types[this.Type].IsIntegral)
+                    throw new Exception("Properties decorated with BitPackerInteger or BitPackerArrayLength must be integral");
+
+                this.bitWidth = integerAttribute.BitWidth;
+            }
+
             var arrayLengthAttribute = propertyAttribute as BitPackerArrayLengthAttribute;
             if (arrayLengthAttribute != null)
             {
-                if (!PrimitiveTypes.IsPrimitive(this.Type) || !PrimitiveTypes.Types[this.Type].IsIntegral)
-                    throw new Exception("Properties decorated with BitPackerArrayLength must be integral");
-
+                // Type-checking already done by BitPackerIntegerAttribute
                 this.lengthKey = arrayLengthAttribute.LengthKey;
             }
 
@@ -248,6 +261,7 @@ namespace BitPacker
                 this.enumEquivalentObjectDetails = new EnumObjectDetails(this.EnumEquivalentType, this.propertyAttribute, this.Endianness);
                 this.CheckEnum();
             }
+
         }
 
         private void CheckEnum()

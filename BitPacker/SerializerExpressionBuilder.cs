@@ -138,15 +138,28 @@ namespace BitPacker
             // Therefore, handle this...
 
             var info = PrimitiveTypes.Types[objectDetails.Type];
-            if (objectDetails.Endianness != EndianUtilities.HostEndianness && info.Size > 1)
+            Expression writeExpression;
+
+            if (info.IsIntegral && objectDetails.BitWidth > 0)
+            {
+                var writeMethod = typeof(BitfieldBinaryWriter).GetMethod("WriteBitfield", new[] { typeof(ulong), typeof(int) });
+                var converted = Expression.Convert(value, typeof(ulong));
+                writeExpression = Expression.Call(this.writer, writeMethod, converted, Expression.Constant(objectDetails.BitWidth));
+            }
+            else if (objectDetails.Endianness != EndianUtilities.HostEndianness && info.Size > 1)
             {
                 // If EndianUtilities has a Swap method for this type, then we can convert it
                 var swapMethod = typeof(EndianUtilities).GetMethod("Swap", new[] { objectDetails.Type } );
                 if (swapMethod != null)
                     value = Expression.Call(swapMethod, value);
+                writeExpression = info.SerializeExpression(this.writer, value);
+            }
+            else
+            {
+                writeExpression = info.SerializeExpression(this.writer, value);
             }
 
-            var wrappedWrite = ExpressionHelpers.TryTranslate(info.SerializeExpression(this.writer, value), context.GetMemberPath());
+            var wrappedWrite = ExpressionHelpers.TryTranslate(writeExpression, context.GetMemberPath());
 
             return new TypeDetails(true, info.Size, wrappedWrite);
         }

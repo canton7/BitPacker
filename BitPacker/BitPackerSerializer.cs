@@ -63,12 +63,12 @@ namespace BitPacker
         public bool HasFixedSize { get; private set; }
         public int MinSize { get; private set; }
 
-        private Action<BinaryWriter, T> serializer;
+        private Action<BitfieldBinaryWriter, T> serializer;
 
         public BitPackerSerializer()
 	    {
             var subjectType = typeof(T);
-            var writer = Expression.Parameter(typeof(BinaryWriter), "writer");
+            var writer = Expression.Parameter(typeof(BitfieldBinaryWriter), "writer");
             var subject = Expression.Parameter(subjectType, "subject");
 
             var builder = new SerializerExpressionBuilder(writer, subjectType);
@@ -77,10 +77,10 @@ namespace BitPacker
             this.HasFixedSize = typeDetails.HasFixedSize;
             this.MinSize = typeDetails.MinSize;
 
-            this.serializer = Expression.Lambda<Action<BinaryWriter, T>>(typeDetails.OperationExpression, writer, subject).Compile();
+            this.serializer = Expression.Lambda<Action<BitfieldBinaryWriter, T>>(typeDetails.OperationExpression, writer, subject).Compile();
 	    }
 
-        public void Serialize(BinaryWriter writer, T subject)
+        public void Serialize(BitfieldBinaryWriter writer, T subject)
         {
             this.serializer(writer, subject);
         }

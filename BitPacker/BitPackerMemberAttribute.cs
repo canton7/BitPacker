@@ -52,7 +52,42 @@ namespace BitPacker
     }
 
     [AttributeUsage(AttributeTargets.Property, Inherited = false, AllowMultiple = false)]
-    public sealed class BitPackerArrayLengthAttribute : BitPackerMemberAttribute
+    public sealed class BitPackerStringAttribute : BitPackerArrayAttribute
+    {
+        public string Encoding { get; set; }
+        public bool NullTerminated { get; set; }
+
+        public BitPackerStringAttribute([CallerLineNumber] int order = 0)
+            : base(order)
+        {
+            this.Encoding = "ASCII";
+        }
+    }
+
+    [AttributeUsage(AttributeTargets.Property, Inherited = false, AllowMultiple = false)]
+    public class BitPackerIntegerAttribute : BitPackerMemberAttribute
+    {
+        public int BitWidth { get; set; }
+
+        public BitPackerIntegerAttribute([CallerLineNumber] int order = 0)
+            : base(order)
+        { }
+    }
+
+    [AttributeUsage(AttributeTargets.Property, Inherited = false, AllowMultiple = false)]
+    public sealed class BitPackerBooleanAttribute : BitPackerIntegerAttribute
+    {
+        public Type IntegerType { get; set; }
+
+        public BitPackerBooleanAttribute([CallerLineNumber] int order = 0)
+            : base(order)
+        {
+            this.IntegerType = typeof(int);
+        }
+    }
+
+    [AttributeUsage(AttributeTargets.Property, Inherited = false, AllowMultiple = false)]
+    public sealed class BitPackerArrayLengthAttribute : BitPackerIntegerAttribute
     {
         public string LengthKey { get; set; }
         public bool Serialize
@@ -64,18 +99,5 @@ namespace BitPacker
         public BitPackerArrayLengthAttribute([CallerLineNumber] int order = 0)
             : base(order)
         { }
-    }
-
-    [AttributeUsage(AttributeTargets.Property, Inherited = false, AllowMultiple = false)]
-    public sealed class BitPackerStringAttribute : BitPackerArrayAttribute
-    {
-        public string Encoding { get; set; }
-        public bool NullTerminated { get; set; }
-
-        public BitPackerStringAttribute([CallerLineNumber] int order = 0)
-            : base(order)
-        {
-            this.Encoding = "ASCII";
-        }
     }
 }
