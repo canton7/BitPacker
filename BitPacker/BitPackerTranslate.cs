@@ -23,9 +23,9 @@ namespace BitPacker
             return nongenericSerializerCache.GetOrAdd(type, t => new BitPackerSerializer(t));
         }
 
-        public static void Serialize<T>(BitfieldBinaryWriter writer, T subject)
+        public static void Serialize<T>(Stream stream, T subject)
         {
-            BitPackerSerializer<T>.Instance.Serialize(writer, subject);
+            BitPackerSerializer<T>.Instance.Serialize(stream, subject);
         }
 
         public static byte[] Serialize<T>(T subject)

@@ -12,7 +12,7 @@ namespace BitPacker
         bool HasFixedSize { get; }
         int MinSize { get; }
 
-        void Serialize(BitfieldBinaryWriter writer, T subject);
+        void Serialize(Stream stream, T subject);
     }
 
     public interface ISerializer
@@ -20,7 +20,7 @@ namespace BitPacker
         bool HasFixedSize { get; }
         int MinSize { get; }
 
-        void Serialize(BinaryWriter writer, object subject);
+        void Serialize(Stream stream, object subject);
     }
 
     public static class SerializerExtensions
@@ -28,10 +28,8 @@ namespace BitPacker
         public static byte[] Serialize<T>(this ISerializer<T> serializer, T subject)
         {
             using (var ms = new MemoryStream())
-            using (var writer = new BitfieldBinaryWriter(ms))
             {
-                serializer.Serialize(writer, subject);
-                writer.Flush();
+                serializer.Serialize(ms, subject);
                 return ms.ToArray();
             }
         }
@@ -39,10 +37,8 @@ namespace BitPacker
         public static byte[] Serialize(this ISerializer serializer, object subject)
         {
             using (var ms = new MemoryStream())
-            using (var writer = new BinaryWriter(ms))
             {
-                serializer.Serialize(writer, subject);
-                writer.Flush();
+                serializer.Serialize(ms, subject);
                 return ms.ToArray();
             }
         }

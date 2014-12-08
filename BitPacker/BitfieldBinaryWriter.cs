@@ -7,12 +7,12 @@ using System.Threading.Tasks;
 
 namespace BitPacker
 {
-    public class BitfieldBinaryWriter : BinaryWriter
+    internal class BitfieldBinaryWriter : BinaryWriter
     {
         private int scratchBitsInUse;
         private byte bitScratchpad;
 
-        public BitfieldBinaryWriter(Stream output) : base(output)
+        public BitfieldBinaryWriter(Stream output) : base(output, Encoding.UTF8, true)
         { }
 
         private void FlushBitfield()
@@ -34,7 +34,6 @@ namespace BitPacker
             
             int numBitsLeftToWrite = numBits;
             int offsetInValueToWrite = 0;
-
 
             while (numBitsLeftToWrite > 0)
             {
@@ -59,6 +58,12 @@ namespace BitPacker
         {
             this.FlushBitfield();
             base.Flush();
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            this.FlushBitfield();
+            base.Dispose(disposing);
         }
 
         public override void Write(bool value)
