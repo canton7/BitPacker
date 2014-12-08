@@ -140,11 +140,14 @@ namespace BitPacker
             var info = PrimitiveTypes.Types[objectDetails.Type];
             Expression writeExpression;
 
-            if (info.IsIntegral && objectDetails.BitWidth > 0)
+            if (info.IsIntegral && objectDetails.BitWidth.HasValue)
             {
-                var writeMethod = typeof(BitfieldBinaryWriter).GetMethod("WriteBitfield", new[] { typeof(ulong), typeof(int) });
-                var converted = Expression.Convert(value, typeof(ulong));
-                writeExpression = Expression.Call(this.writer, writeMethod, converted, Expression.Constant(objectDetails.BitWidth));
+                var writeMethod = typeof(BitfieldBinaryWriter).GetMethod("WriteBitfield", new[] { typeof(ulong), typeof(int), typeof(int), typeof(bool) });
+                var convertedValue = Expression.Convert(value, typeof(ulong));
+                var containerSize = Expression.Constant(info.Size);
+                var numBits = Expression.Constant(objectDetails.BitWidth.GetValueOrDefault(0));
+                var swapEndianness = Expression.Constant(objectDetails.Endianness != EndianUtilities.HostEndianness);
+                writeExpression = Expression.Call(this.writer, writeMethod, convertedValue, containerSize, numBits, swapEndianness);
             }
             else if (objectDetails.Endianness != EndianUtilities.HostEndianness && info.Size > 1)
             {

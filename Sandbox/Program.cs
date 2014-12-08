@@ -56,7 +56,7 @@ namespace Sandbox
 
     public enum Test { Foo, Bar = 256 };
 
-    [BitPackerObject]
+    [BitPackerObject(Endianness=Endianness.NetworkEndian)]
     public class TestClass
     {
         //[BitPackerMember(CustomDeserializer = typeof(CustomDeserializer))]
@@ -77,13 +77,13 @@ namespace Sandbox
         //[BitPackerEnum(EnumType = typeof(byte))]
         //public Test Enum { get; set; }
 
-        [BitPackerInteger(BitWidth = 16)]
-        public int SomeInt { get; set; }
+        [BitPackerInteger(BitWidth = 8)]
+        public short SomeInt { get; set; }
 
-        [BitPackerInteger(BitWidth = 16)]
-        public int SomeOtherInt { get; set; }
+        [BitPackerInteger(BitWidth = 7)]
+        public short SomeOtherInt { get; set; }
 
-        [BitPackerInteger]
+        [BitPackerInteger(BitWidth = 8)]
         public short SomeOtherOtherInt { get; set; }
 
         //[BitPackerArrayLength(LengthKey = "key")]

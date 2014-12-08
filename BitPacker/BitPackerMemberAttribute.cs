@@ -67,7 +67,12 @@ namespace BitPacker
     [AttributeUsage(AttributeTargets.Property, Inherited = false, AllowMultiple = false)]
     public class BitPackerIntegerAttribute : BitPackerMemberAttribute
     {
-        public int BitWidth { get; set; }
+        internal int? NullableBitWidth;
+        public int BitWidth
+        {
+            get { return this.NullableBitWidth.GetValueOrDefault(0); }
+            set { this.NullableBitWidth = value; }
+        }
 
         public BitPackerIntegerAttribute([CallerLineNumber] int order = 0)
             : base(order)

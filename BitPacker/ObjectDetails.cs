@@ -28,7 +28,7 @@ namespace BitPacker
         protected readonly Type customSerializer;
         protected readonly Type customDeserializer;
         protected readonly Type enumEquivalentType;
-        protected readonly int bitWidth;
+        protected readonly int? bitWidth;
 
         public Type Type
         {
@@ -167,7 +167,7 @@ namespace BitPacker
             }
         }
 
-        public int BitWidth
+        public int? BitWidth
         {
             get { return this.bitWidth; }
         }
@@ -181,6 +181,9 @@ namespace BitPacker
 
             if (this.endianness == null && this.objectAttribute != null)
                 this.endianness = this.objectAttribute.Endianness;
+
+            if (propertyAttribute.NullableEndianness != null)
+                this.endianness = propertyAttribute.NullableEndianness.Value;
 
             this.customSerializer = propertyAttribute.CustomSerializer;
             if (this.customSerializer == null && this.objectAttribute != null)
