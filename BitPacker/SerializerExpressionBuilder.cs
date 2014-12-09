@@ -167,10 +167,16 @@ namespace BitPacker
             return new TypeDetails(true, info.Size, wrappedWrite);
         }
 
-        public TypeDetails SerializeEnum(TranslationContext context)
+        private TypeDetails SerializeEnum(TranslationContext context)
         {
-            var newContext = context.Push(context.ObjectDetails.EnumEquivalentObjectDetails, Expression.Convert(context.Subject, context.ObjectDetails.EnumEquivalentType), null);
+            var newContext = context.Push(context.ObjectDetails.EnumEquivalentObjectDetails, Expression.Convert(context.Subject, context.ObjectDetails.EquivalentType), null);
             return this.SerializePrimitive(newContext);
+        }
+
+        private TypeDetails SerializeBoolean(TranslationContext context)
+        {
+            var type = context.ObjectDetails.EquivalentType;
+            var value = Expression.Condition(context.Subject, Expression.Constant(1, type), Expression.Constant(0, type));)
         }
 
         private TypeDetails SerializeString(TranslationContext context)

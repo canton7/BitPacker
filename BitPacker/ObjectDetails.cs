@@ -27,7 +27,7 @@ namespace BitPacker
         protected readonly EnumObjectDetails enumEquivalentObjectDetails;
         protected readonly Type customSerializer;
         protected readonly Type customDeserializer;
-        protected readonly Type enumEquivalentType;
+        protected readonly Type equivalentType;
         protected readonly int? bitWidth;
 
         public Type Type
@@ -127,13 +127,13 @@ namespace BitPacker
             get { return typeof(Enum).IsAssignableFrom(this.Type); }
         }
 
-        public Type EnumEquivalentType
+        public Type EquivalentType
         {
             get
             {
-                if (!this.IsEnum)
-                    throw new InvalidOperationException("Not Enum");
-                return this.enumEquivalentType ?? typeof(int);
+                if (!this.IsEnum && this.Type != typeof(bool))
+                    throw new InvalidOperationException("Not Enum or bool");
+                return this.equivalentType ?? typeof(int);
             }
         }
 
@@ -257,20 +257,30 @@ namespace BitPacker
                 if (!this.Type.IsEnum)
                     throw new Exception("Properties decorated with BitPackerEnum must be enums");
 
-                this.enumEquivalentType = enumAttribute.EnumType;
+                this.EnsureTypeIsInteger(enumAttribute.EnumType);
+                this.equivalentType = enumAttribute.EnumType;
             }
             if (this.IsEnum)
             {
-                this.enumEquivalentObjectDetails = new EnumObjectDetails(this.EnumEquivalentType, this.propertyAttribute, this.Endianness);
+                this.enumEquivalentObjectDetails = new EnumObjectDetails(this.EquivalentType, this.propertyAttribute, this.Endianness);
                 this.CheckEnum();
             }
 
+            var booleanAttribute = propertyAttribute as BitPackerBooleanAttribute;
+            if (booleanAttribute != null)
+            {
+                if (this.Type != typeof(bool))
+                    throw new Exception("Properties decorated with BitPackerBoolean bust be booleans");
+
+                this.EnsureTypeIsInteger(booleanAttribute.IntegerType);
+                this.equivalentType = booleanAttribute.IntegerType;
+            }
         }
 
         private void CheckEnum()
         {
             // Check that no value in the enum exceeds the given size
-            var length = PrimitiveTypes.Types[this.EnumEquivalentType].Size;
+            var length = PrimitiveTypes.Types[this.EquivalentType].Size;
             var maxVal = Math.Pow(2, length * 8);
             // Can't use linq, as it's an non-generic IEnumerable of value types
             foreach (var enumVal in Enum.GetValues(this.Type))
@@ -278,6 +288,12 @@ namespace BitPacker
                 if ((int)enumVal >= maxVal)
                     throw new Exception(String.Format("Enum type {0} has a size of {1} bytes, but has a member '{2}' which is greater than this", this.Type, length, enumVal));
             }
+        }
+
+        private void EnsureTypeIsInteger(Type type)
+        {
+            if (!PrimitiveTypes.IsPrimitive(type) || !PrimitiveTypes.Types[type].IsIntegral)
+                throw new Exception(String.Format("Type {0} must be an integer", type));
         }
 
         public void Discover()
@@ -342,8 +358,13 @@ namespace BitPacker
         public EnumObjectDetails(Type type, BitPackerMemberAttribute propertyAttribute, Endianness? endianness = null)
             : base(type, propertyAttribute, endianness, true)
         { }
+    }
 
-        
+    internal class BooleanObjectDetails : ObjectDetails
+    {
+        public BooleanObjectDetails(Type type, BitPackerMemberAttribute propertyAttribute, Endianness? endianness = null)
+            : base(type, propertyAttribute, endianness, true)
+        { }
     }
 
     internal class EnumerableElementObjectDetails : ObjectDetails
