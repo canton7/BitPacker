@@ -144,8 +144,8 @@ namespace BitPacker
         {
             var serializerType = context.ObjectDetails.CustomSerializer;
 
-            if (!serializerType.IsClass || serializerType.IsAbstract)
-                throw new Exception("Custom serializer must be a concrete class");
+            if (!serializerType.IsClass || serializerType.IsAbstract || !typeof(ICustomSerializer).IsAssignableFrom(serializerType))
+                throw new Exception("Custom serializer must be a concrete class that implements ICustomSerializer");
 
             ICustomSerializer serializer = (ICustomSerializer)Activator.CreateInstance(serializerType, false);
 

@@ -20,10 +20,10 @@ namespace BitPacker
         private static readonly MethodInfo readByteMethod = typeof(BitfieldBinaryReader).GetMethod("ReadByte");
         private static readonly MethodInfo byteListAddMethod = typeof(List<byte>).GetMethod("Add", new[] { typeof(byte) });
         private static readonly MethodInfo byteListToArrayMethod = typeof(List<byte>).GetMethod("ToArray", new Type[0]);
+        private static readonly MethodInfo deserializeMethod = typeof(ICustomDeserializer).GetMethod("Deserialize", new[] { typeof(BinaryReader), typeof(object) });
 
         private readonly ParameterExpression reader;
         private readonly Type objectType;
-        private Dictionary<Type, object> deserializerCache = new Dictionary<Type, object>();
 
         public DeserializerExpressionBuilder(ParameterExpression reader, Type objectType)
         {
@@ -366,56 +366,38 @@ namespace BitPacker
 
         private TypeDetails CreateAndAssignFromDeserializer(Type deserializerType, Expression subject, TranslationContext context)
         {
-            if (!deserializerType.IsClass || deserializerType.IsAbstract)
+            if (!deserializerType.IsClass || deserializerType.IsAbstract || !typeof(ICustomDeserializer).IsAssignableFrom(deserializerType))
                 throw new Exception("Custom deserializer must be a concrete class");
 
-            Type interfaceType;
+            ICustomDeserializer deserializer = (ICustomDeserializer)Activator.CreateInstance(deserializerType, false);
 
-            interfaceType = deserializerType.GetInterfaces().FirstOrDefault(x => (x.IsGenericType && x.GetGenericTypeDefinition() == typeof(IDeserializer<>)) || x == typeof(IDeserializer));
-            if (interfaceType == null)
-            {
-                throw new Exception("Custom deserializer must implement IDeserializer or IDeserializer<T>");
-            }
-
-            object deserializerObject;
-
-            // Is it in the cache?
-            if (!this.deserializerCache.TryGetValue(deserializerType, out deserializerObject))
-            {
-                deserializerObject = Activator.CreateInstance(deserializerType);
-                this.deserializerCache.Add(deserializerType, deserializerObject);
-            }
-
-            var deserializer = Expression.Convert(Expression.Constant(deserializerObject), deserializerType);
-
-            var minSize = (int)deserializerType.GetProperty("MinSize").GetValue(deserializerObject);
-            var hasFixedSize = (bool)deserializerType.GetProperty("HasFixedSize").GetValue(deserializerObject);
-
-            var deserializeMethod = deserializerType.GetMethod("Deserialize");
-            var deserialization = Expression.Convert(Expression.Call(deserializer, deserializeMethod, this.reader), context.ObjectDetails.Type);
+            // Try and find them a context, if we can...
+            var contextType = deserializer.ContextType;
+            var customContext = context.FindParentContextOfType(deserializer.ContextType) ?? Expression.Constant(null);
+            var wrappedInvocation = Expression.Call(Expression.Constant(deserializer), deserializeMethod, this.reader, customContext);
 
             var positionAccess = Expression.Property(Expression.Property(this.reader, "BaseStream"), "Position");
 
             var startingPositionVar = Expression.Variable(typeof(long), "beforePosition");
             var startingPositionAssignment = Expression.Assign(startingPositionVar, positionAccess);
 
-            var wrappedAssignment = ExpressionHelpers.TryTranslate(Expression.Assign(subject, deserialization), context.GetMemberPath());
+            var wrappedAssignment = ExpressionHelpers.TryTranslate(Expression.Assign(subject, Expression.Convert(wrappedInvocation, context.ObjectDetails.Type)), context.GetMemberPath());
 
             var readBytesVar = Expression.Variable(typeof(long), "readBytes");
             var readBytesAssignment = Expression.Assign(readBytesVar, Expression.Subtract(positionAccess, startingPositionVar));
 
             Expression check;
             Expression exceptionMessage;
-            if (hasFixedSize)
+            if (deserializer.HasFixedSize)
             {
-                check = Expression.NotEqual(Expression.Convert(Expression.Constant(minSize), typeof(long)), readBytesVar);
-                var constMessage = String.Format("Error deserializing field {0} using custom deserializer: Deserializer should have read {1} bytes, but actually read {{0}}", String.Join(".", context.GetMemberPath()), minSize);
+                check = Expression.NotEqual(Expression.Convert(Expression.Constant(deserializer.MinSize), typeof(long)), readBytesVar);
+                var constMessage = String.Format("Error deserializing field {0} using custom deserializer {1}: Deserializer should have read {2} bytes, but actually read {{0}}", String.Join(".", context.GetMemberPath()), deserializerType, deserializer.MinSize);
                 exceptionMessage = ExpressionHelpers.StringFormat(constMessage, readBytesVar);
             }
             else
             {
-                check = Expression.GreaterThan(Expression.Convert(Expression.Constant(minSize), typeof(long)), readBytesVar);
-                var constMessage = String.Format("Error deserializing field {0} using custom deserializer: Deserializer should have read {1} bytes or more, but actually read {{0}}", String.Join(".", context.GetMemberPath()), minSize);
+                check = Expression.GreaterThan(Expression.Convert(Expression.Constant(deserializer.MinSize), typeof(long)), readBytesVar);
+                var constMessage = String.Format("Error deserializing field {0} using custom deserializer {1}: Deserializer should have read {2} bytes or more, but actually read {{0}}", String.Join(".", context.GetMemberPath()), deserializerType, deserializer.MinSize);
                 exceptionMessage = ExpressionHelpers.StringFormat(constMessage, readBytesVar);
             }
 
@@ -431,7 +413,7 @@ namespace BitPacker
                 checkAndThrow
             );
 
-            return new TypeDetails(hasFixedSize, minSize, block);
+            return new TypeDetails(deserializer.HasFixedSize, deserializer.MinSize, block);
         }
     }
 }

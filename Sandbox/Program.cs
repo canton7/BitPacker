@@ -108,9 +108,10 @@ namespace Sandbox
         
     }
 
-    [BitPackerObject(CustomSerializer = typeof(CustomSerializer))]
+    [BitPackerObject(CustomSerializer = typeof(CustomSerializer), CustomDeserializer = typeof(CustomDeserializer))]
     public class TestSubClass
     {
+        public int Foo { get; set; }
         //[BitPackerMember]
         //public TestSubSubClass SubSubClass { get; set; }
     }
@@ -129,6 +130,33 @@ namespace Sandbox
         public int Length { get; set; }
     }
 
+    public class CustomDeserializer : ICustomDeserializer
+    {
+        public Type ContextType
+        {
+            get { return null; }
+        }
+
+        public bool HasFixedSize
+        {
+            get { return true; }
+        }
+
+        public int MinSize
+        {
+            get { return 4; }
+        }
+
+        public object Deserialize(BinaryReader reader, object context)
+        {
+            reader.ReadInt32();
+            return new TestSubClass()
+            {
+                Foo = 1,
+            };
+        }
+    }
+
     public class CustomSerializer : ICustomSerializer
     {
         public bool HasFixedSize
@@ -138,7 +166,7 @@ namespace Sandbox
 
         public int MinSize
         {
-            get { return 3; }
+            get { return 4; }
         }
 
         public Type ContextType
@@ -152,7 +180,6 @@ namespace Sandbox
             writer.Write((byte)3);
             writer.Write((byte)3);
             writer.Write((byte)3);
-            //writer.Write((byte)3);
         }
     }
 }
