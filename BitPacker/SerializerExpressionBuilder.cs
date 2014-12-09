@@ -89,7 +89,7 @@ namespace BitPacker
         {
             var objectDetails = context.ObjectDetails;
 
-            if (objectDetails.Type == typeof(bool))
+            if (objectDetails.IsBoolean)
                 return this.SerializeBoolean(context);
 
             if (objectDetails.IsString)
@@ -98,7 +98,7 @@ namespace BitPacker
             if (objectDetails.IsEnumerable)
                 return this.SerializeEnumerable(context);
 
-            if (PrimitiveTypes.Types.ContainsKey(objectDetails.Type))
+            if (objectDetails.IsPrimitiveType)
                 return this.SerializePrimitive(context);
 
             if (objectDetails.IsEnum)
@@ -136,11 +136,7 @@ namespace BitPacker
             var objectDetails = context.ObjectDetails;
             var value = context.Subject;
 
-            // Even through EndiannessUtilities has now Swap(byte) overload, we get an AmbiguousMatchException
-            // when we try and find such a method (maybe the byte is being coerced into an int or something?).
-            // Therefore, handle this...
-
-            var info = PrimitiveTypes.Types[objectDetails.Type];
+            var info = objectDetails.PrimitiveTypeInfo;
             Expression writeExpression;
 
             if (info.IsIntegral && objectDetails.BitWidth.HasValue)
@@ -152,6 +148,9 @@ namespace BitPacker
                 var swapEndianness = Expression.Constant(objectDetails.Endianness != EndianUtilities.HostEndianness);
                 writeExpression = Expression.Call(this.writer, writeMethod, convertedValue, containerSize, numBits, swapEndianness);
             }
+            // Even through EndiannessUtilities has now Swap(byte) overload, we get an AmbiguousMatchException
+            // when we try and find such a method (maybe the byte is being coerced into an int or something?).
+            // Therefore, handle this...
             else if (objectDetails.Endianness != EndianUtilities.HostEndianness && info.Size > 1)
             {
                 // If EndianUtilities has a Swap method for this type, then we can convert it

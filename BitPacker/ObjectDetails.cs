@@ -30,6 +30,8 @@ namespace BitPacker
         protected readonly Type customDeserializer;
         protected readonly Type equivalentType;
         protected readonly int? bitWidth;
+        protected readonly bool isPrimitiveType;
+        protected readonly IPrimitiveTypeInfo primitiveTypeInfo;
 
         public Type Type
         {
@@ -89,6 +91,11 @@ namespace BitPacker
                     throw new InvalidOperationException("Not a string");
                 return this.nullTerminated;
             }
+        }
+
+        public bool IsBoolean
+        {
+            get { return this.Type == typeof(bool); }
         }
 
         public bool IsEnumerable
@@ -162,7 +169,7 @@ namespace BitPacker
         {
             get
             {
-                if (this.Type != typeof(bool))
+                if (!this.IsBoolean)
                     throw new InvalidOperationException("Not Bool");
                 return this.booleanEquivalentObjectDetails;
             }
@@ -173,12 +180,30 @@ namespace BitPacker
             get { return this.bitWidth; }
         }
 
+        public bool IsPrimitiveType
+        {
+            get { return this.isPrimitiveType; }
+        }
+
+        public IPrimitiveTypeInfo PrimitiveTypeInfo
+        {
+            get
+            {
+                if (!this.isPrimitiveType)
+                    throw new InvalidOperationException("Not a primitive type");
+                return this.primitiveTypeInfo;
+            }
+        }
+
         public ObjectDetails(Type type, BitPackerMemberAttribute propertyAttribute, Endianness? endianness = null, bool isAttributeCascaded = false)
         {
             this.type = type;
             this.objectAttribute = this.type.GetCustomAttribute<BitPackerObjectAttribute>();
             this.endianness = endianness;
             this.propertyAttribute = propertyAttribute;
+            this.isPrimitiveType = PrimitiveTypes.IsPrimitive(this.type);
+            if (this.isPrimitiveType)
+                this.primitiveTypeInfo = PrimitiveTypes.Types[this.type];
 
             if (this.endianness == null && this.objectAttribute != null)
                 this.endianness = this.objectAttribute.Endianness;
@@ -240,13 +265,13 @@ namespace BitPacker
             var booleanAttribute = propertyAttribute as BitPackerBooleanAttribute;
             if (booleanAttribute != null && !isAttributeCascaded)
             {
-                if (this.Type != typeof(bool))
-                    throw new Exception("Properties decorated with BitPackerBoolean bust be booleans");
+                if (!this.IsBoolean)
+                    throw new Exception("Properties decorated with BitPackerBoolean must be booleans");
 
                 this.EnsureTypeIsInteger(booleanAttribute.Type);
                 this.equivalentType = booleanAttribute.Type;
             }
-            if (this.Type == typeof(bool))
+            if (this.IsBoolean)
             {
                 this.booleanEquivalentObjectDetails = new ObjectDetails(this.equivalentType ?? typeof(int), propertyAttribute, this.Endianness, true);
             }
@@ -272,7 +297,7 @@ namespace BitPacker
             if (integerAttribute != null)
             {
                 var typeToCheck = this.equivalentType ?? this.Type;
-                if (!PrimitiveTypes.IsPrimitive(typeToCheck) || !PrimitiveTypes.Types[typeToCheck].IsIntegral)
+                if (!this.IsPrimitiveType || !this.PrimitiveTypeInfo.IsIntegral)
                     throw new Exception("Properties decorated with BitPackerInteger or BitPackerArrayLength must be integral");
 
                 this.bitWidth = integerAttribute.NullableBitWidth;
@@ -311,7 +336,7 @@ namespace BitPacker
 
         private void EnsureTypeIsInteger(Type type)
         {
-            if (!PrimitiveTypes.IsPrimitive(type) || !PrimitiveTypes.Types[type].IsIntegral)
+            if (!this.IsPrimitiveType || !this.primitiveTypeInfo.IsIntegral)
                 throw new Exception(String.Format("Type {0} must be an integer", type));
         }
 

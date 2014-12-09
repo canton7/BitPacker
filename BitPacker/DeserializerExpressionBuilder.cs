@@ -69,13 +69,13 @@ namespace BitPacker
             if (objectDetails.IsString)
                 return this.DeserializeString(context);
 
-            if (objectDetails.Type == typeof(bool))
+            if (objectDetails.IsBoolean)
                 return this.DeserializeBoolean(objectDetails);
 
             if (objectDetails.IsEnumerable)
                 return this.DeserializeEnumerable(context);
 
-            if (PrimitiveTypes.Types.ContainsKey(objectDetails.Type))
+            if (objectDetails.IsPrimitiveType)
                 return this.DeserializePrimitive(objectDetails);
 
             if (objectDetails.IsEnum)
@@ -132,7 +132,7 @@ namespace BitPacker
             // when we try and find such a method (maybe the byte is being coerced into an int or something?).
             // Therefore, handle this..
 
-            var info = PrimitiveTypes.Types[objectDetails.Type];
+            var info = objectDetails.PrimitiveTypeInfo;
             Expression readExpression;
 
             if (info.IsIntegral && objectDetails.BitWidth.HasValue)
