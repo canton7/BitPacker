@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -11,6 +12,14 @@ namespace BitPacker
 {
     internal class DeserializerExpressionBuilder
     {
+        private static readonly MethodInfo readBitfieldMethod = typeof(BitfieldBinaryReader).GetMethod("ReadBitfield", new[] { typeof(int), typeof(int), typeof(bool) });
+        private static readonly MethodInfo getStringMethod = typeof(Encoding).GetMethod("GetString", new[] { typeof(byte[]) });
+        private static readonly MethodInfo readBytesMethod = typeof(BitfieldBinaryReader).GetMethod("ReadBytes", new[] { typeof(int) });
+        private static readonly MethodInfo TrimEndMethod = typeof(string).GetMethod("TrimEnd", new[] { typeof(char[]) });
+        private static readonly MethodInfo readByteMethod = typeof(BitfieldBinaryReader).GetMethod("ReadByte");
+        private static readonly MethodInfo byteListAddMethod = typeof(List<byte>).GetMethod("Add", new[] { typeof(byte) });
+        private static readonly MethodInfo byteListToArrayMethod = typeof(List<byte>).GetMethod("ToArray", new Type[0]);
+
         private readonly ParameterExpression reader;
         private readonly Type objectType;
         private Dictionary<Type, object> deserializerCache = new Dictionary<Type, object>();
@@ -137,11 +146,10 @@ namespace BitPacker
 
             if (info.IsIntegral && objectDetails.BitWidth.HasValue)
             {
-                var readMethod = typeof(BitfieldBinaryReader).GetMethod("ReadBitfield", new[] { typeof(int), typeof(int), typeof(bool) });
                 var containerSize = Expression.Constant(info.Size);
                 var numBits = Expression.Constant(objectDetails.BitWidth.Value);
                 var swapEndianness = Expression.Constant(objectDetails.Endianness != EndianUtilities.HostEndianness);
-                var readValue = Expression.Call(this.reader, readMethod, containerSize, numBits, swapEndianness);
+                var readValue = Expression.Call(this.reader, readBitfieldMethod, containerSize, numBits, swapEndianness);
                 readExpression = Expression.Convert(readValue, objectDetails.Type);
             }
             else if (objectDetails.Endianness != EndianUtilities.HostEndianness && info.Size > 1)
@@ -207,7 +215,6 @@ namespace BitPacker
             var objectDetails = context.ObjectDetails;
             var encoding = Expression.Constant(objectDetails.Encoding);
             bool hasFixedLength = objectDetails.EnumerableLength > 0;
-            var getStringMethod = typeof(Encoding).GetMethod("GetString", new[] { typeof(byte[]) });
             BlockExpression block;
 
             // Riiight... So. It's either got a length, or it's an ASCII null-terminated string
@@ -218,7 +225,6 @@ namespace BitPacker
                 var arrayLength = this.GetArrayLength(context, out arrayPaddingLength);
                 var blockMembers = new List<Expression>();
 
-                var readBytesMethod = typeof(BitfieldBinaryReader).GetMethod("ReadBytes", new[] { typeof(int) });
                 var bytesArrayVar = Expression.Variable(typeof(byte[]), "bytes");
                 blockMembers.Add(Expression.Assign(bytesArrayVar, Expression.Call(this.reader, readBytesMethod, arrayLength)));
                 if (arrayPaddingLength != null)
@@ -228,14 +234,9 @@ namespace BitPacker
 
                 // If it's ASCII, trim the NULLs
                 if (objectDetails.Encoding == Encoding.ASCII)
-                {
-                    var trimMethod = typeof(string).GetMethod("TrimEnd", new[] { typeof(char[]) });
-                    blockMembers.Add(Expression.Call(stringRead, trimMethod, Expression.NewArrayInit(typeof(char), Expression.Constant('\0'))));
-                }
+                    blockMembers.Add(Expression.Call(stringRead, TrimEndMethod, Expression.NewArrayInit(typeof(char), Expression.Constant('\0'))));
                 else
-                {
                     blockMembers.Add(stringRead);
-                }
 
                 block = Expression.Block(new[] { bytesArrayVar }, blockMembers);
             }
@@ -251,22 +252,19 @@ namespace BitPacker
 
                 var breakLabel = Expression.Label("LoopBreak");
                 var byteVar = Expression.Variable(typeof(byte), "byte");
-                var readByteMethod = typeof(BitfieldBinaryReader).GetMethod("ReadByte");
-                var listAddMethod = typeof(List<byte>).GetMethod("Add", new[] { typeof(byte) });
 
                 var loopContents = Expression.Block(new[] { byteVar },
                     Expression.Assign(byteVar, Expression.Call(this.reader, readByteMethod)),
                     Expression.IfThenElse(
                         Expression.Equal(byteVar, Expression.Constant((byte)0)),
                         Expression.Break(breakLabel),
-                        Expression.Call(listVar, listAddMethod, byteVar)
+                        Expression.Call(listVar, byteListAddMethod, byteVar)
                     )
                 );
 
                 var loop = Expression.Loop(loopContents, breakLabel);
 
-                var toArrayMethod = typeof(List<byte>).GetMethod("ToArray", new Type[0]);
-                var toArrayCall = Expression.Call(listVar, toArrayMethod);
+                var toArrayCall = Expression.Call(listVar, byteListToArrayMethod);
                 var stringRead = Expression.Call(encoding, getStringMethod, toArrayCall);
 
                 block = Expression.Block(new[] { listVar },
@@ -312,7 +310,6 @@ namespace BitPacker
                 // If it's got a fixed size, we can just call ReadBytes once for the whole lot
                 if (typeDetails.HasFixedSize)
                 {
-                    var readBytesMethod = typeof(BitfieldBinaryReader).GetMethod("ReadBytes", new[] { typeof(int) });
                     var readLength = Expression.Multiply(Expression.Constant(typeDetails.MinSize), arrayPaddingLength);
                     paddingLoop = Expression.Call(this.reader, readBytesMethod, readLength);
                 }

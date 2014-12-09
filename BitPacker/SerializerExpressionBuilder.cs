@@ -12,6 +12,10 @@ namespace BitPacker
 {
     internal class SerializerExpressionBuilder
     {
+        private static readonly MethodInfo writeBitfieldMethod = typeof(BitfieldBinaryWriter).GetMethod("WriteBitfield", new[] { typeof(ulong), typeof(int), typeof(int), typeof(bool) });
+        private static readonly MethodInfo getByteCountMethod = typeof(Encoding).GetMethod("GetByteCount", new[] { typeof(string) });
+        private static readonly MethodInfo getBytesMethod = typeof(Encoding).GetMethod("GetBytes", new[] { typeof(string), typeof(int), typeof(int), typeof(byte[]), typeof(int) });
+
         private readonly Expression writer;
         private readonly Type objectType;
 
@@ -141,12 +145,12 @@ namespace BitPacker
 
             if (info.IsIntegral && objectDetails.BitWidth.HasValue)
             {
-                var writeMethod = typeof(BitfieldBinaryWriter).GetMethod("WriteBitfield", new[] { typeof(ulong), typeof(int), typeof(int), typeof(bool) });
+                
                 var convertedValue = Expression.Convert(value, typeof(ulong));
                 var containerSize = Expression.Constant(info.Size);
                 var numBits = Expression.Constant(objectDetails.BitWidth.Value);
                 var swapEndianness = Expression.Constant(objectDetails.Endianness != EndianUtilities.HostEndianness);
-                writeExpression = Expression.Call(this.writer, writeMethod, convertedValue, containerSize, numBits, swapEndianness);
+                writeExpression = Expression.Call(this.writer, writeBitfieldMethod, convertedValue, containerSize, numBits, swapEndianness);
             }
             // Even through EndiannessUtilities has now Swap(byte) overload, we get an AmbiguousMatchException
             // when we try and find such a method (maybe the byte is being coerced into an int or something?).
@@ -191,13 +195,11 @@ namespace BitPacker
 
             var blockMembers = new List<Expression>();
 
-            var getByteCountMethod = typeof(Encoding).GetMethod("GetByteCount", new[] { typeof(string) });
             var numBytes = Expression.Call(encoding, getByteCountMethod, str);
             var byteArrayVar = Expression.Variable(typeof(byte[]), "bytes");
             var paddingBytes = context.ObjectDetails.NullTerminated ? 1 : 0;
             var arrayInit = Expression.NewArrayBounds(typeof(byte), Expression.Add(numBytes, Expression.Constant(paddingBytes)));
             var arrayAssign = Expression.Assign(byteArrayVar, arrayInit);
-            var getBytesMethod = typeof(Encoding).GetMethod("GetBytes", new[] { typeof(string), typeof(int), typeof(int), typeof(byte[]), typeof(int) });
             var strLength = Expression.Property(str, "Length");
             var getBytesCall = Expression.Call(encoding, getBytesMethod, str, Expression.Constant(0), strLength, byteArrayVar, Expression.Constant(0));
 
