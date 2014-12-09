@@ -78,7 +78,7 @@ namespace Sandbox
         //[BitPackerMember]
         //public Test Enum { get; set; }
 
-        [BitPackerMember(CustomSerializer = typeof(CustomSerializer))]
+        [BitPackerMember]
         public TestSubClass SubClass { get; set; }
 
         //[BitPackerInteger(BitWidth = 0, PadContainerAfter = true)]
@@ -108,7 +108,7 @@ namespace Sandbox
         
     }
 
-    [BitPackerObject]
+    [BitPackerObject(CustomSerializer = typeof(CustomSerializer))]
     public class TestSubClass
     {
         //[BitPackerMember]
@@ -133,7 +133,7 @@ namespace Sandbox
     {
         public bool HasFixedSize
         {
-            get { return false; }
+            get { return true; }
         }
 
         public int MinSize
@@ -148,7 +148,11 @@ namespace Sandbox
 
         public void Serialize(BinaryWriter writer, object subject, object context)
         {
-            writer.Write(3);
+            writer.Write((byte)3);
+            writer.Write((byte)3);
+            writer.Write((byte)3);
+            writer.Write((byte)3);
+            //writer.Write((byte)3);
         }
     }
 }

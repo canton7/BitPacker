@@ -44,6 +44,7 @@
     <Compile Include="BitPackerTranslate.cs" />
     <Compile Include="BitPackerDeserializer.cs" />
     <Compile Include="BitPackerTranslationException.cs" />
+    <Compile Include="ICustomDeserializer.cs" />
     <Compile Include="ICustomSerializer.cs" />
     <Compile Include="IDeserializer.cs" />
     <Compile Include="ISerializer.cs" />
