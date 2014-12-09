@@ -108,5 +108,11 @@ namespace BitPacker
         {
             return this.stack.Select(x => x.MemberName).Where(x => x != null).Reverse().ToList();
         }
+
+        public Expression FindParentContextOfType(Type type)
+        {
+            var step = this.stack.FirstOrDefault(x => x.Subject.Type == type);
+            return step == null ? null : step.Subject;
+        }
     }
 }

@@ -16,6 +16,7 @@ namespace BitPacker
         private static readonly MethodInfo flushContainerMethod = typeof(BitfieldBinaryWriter).GetMethod("FlushContainer", new Type[0]);
         private static readonly MethodInfo getByteCountMethod = typeof(Encoding).GetMethod("GetByteCount", new[] { typeof(string) });
         private static readonly MethodInfo getBytesMethod = typeof(Encoding).GetMethod("GetBytes", new[] { typeof(string), typeof(int), typeof(int), typeof(byte[]), typeof(int) });
+        private static readonly MethodInfo serializeMethod = typeof(ICustomSerializer).GetMethod("Serialize", new[] { typeof(BinaryWriter), typeof(object), typeof(object) });
 
         private readonly Expression writer;
         private readonly Type objectType;
@@ -115,13 +116,16 @@ namespace BitPacker
             throw new Exception(String.Format("Don't know how to serialize type {0}. Is it missing a [BitPackerObject] attribute?", objectDetails.Type.Name));
         }
 
-        public TypeDetails SerializeCustomType(TranslationContext context)
+        private TypeDetails SerializeCustomType(TranslationContext context)
         {
             var objectDetails = context.ObjectDetails;
 
             // If it's not marked with our attribute, we're not serializing it
             if (!objectDetails.IsCustomType)
                 return null;
+
+            if (objectDetails.CustomSerializer != null)
+                return this.SerializeUsingSerializer(context);
 
             Expression result;
             var typeDetails = objectDetails.Properties.Select(property =>
@@ -134,6 +138,17 @@ namespace BitPacker
             result = Expression.Block(blockMembers.Where(x => x != null).DefaultIfEmpty(Expression.Empty()));
 
             return new TypeDetails(typeDetails.All(x => x.HasFixedSize), typeDetails.Sum(x => x.MinSize), result);
+        }
+
+        private TypeDetails SerializeUsingSerializer(TranslationContext context)
+        {
+            ICustomSerializer serializer = (ICustomSerializer)Activator.CreateInstance(context.ObjectDetails.CustomSerializer, false);
+
+            // Try and find them a context, if we can...
+            var contextType = serializer.ContextType;
+            var customContext = context.FindParentContextOfType(serializer.ContextType) ?? Expression.Constant(null);
+            var invocation = Expression.Call(Expression.Constant(serializer), serializeMethod, this.writer, context.Subject, customContext);
+            return new TypeDetails(serializer.HasFixedSize, serializer.MinSize, ExpressionHelpers.TryTranslate(invocation, context.GetMemberPath()));
         }
 
         private TypeDetails SerializePrimitive(TranslationContext context)

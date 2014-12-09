@@ -15,9 +15,7 @@ namespace Sandbox
         {
             var buffer = BitPackerTranslate.Serialize(new TestClass()
             {
-                SomeInt = 1,
-                SomeOtherInt = 3,
-                SomeOtherOtherInt = 7
+                SubClass = new TestSubClass(),
                 //Enum = Test.Bar,
                 //TestBool = true,
                 //AnotherTestBool = true,
@@ -80,14 +78,17 @@ namespace Sandbox
         //[BitPackerMember]
         //public Test Enum { get; set; }
 
-        [BitPackerInteger(BitWidth = 0, PadContainerAfter = true)]
-        public short SomeInt { get; set; }
+        [BitPackerMember(CustomSerializer = typeof(CustomSerializer))]
+        public TestSubClass SubClass { get; set; }
 
-        [BitPackerInteger(BitWidth = 8)]
-        public short SomeOtherInt { get; set; }
+        //[BitPackerInteger(BitWidth = 0, PadContainerAfter = true)]
+        //public short SomeInt { get; set; }
 
-        [BitPackerInteger(BitWidth = 8)]
-        public short SomeOtherOtherInt { get; set; }
+        //[BitPackerInteger(BitWidth = 8)]
+        //public short SomeOtherInt { get; set; }
+
+        //[BitPackerInteger(BitWidth = 8)]
+        //public short SomeOtherOtherInt { get; set; }
 
         //[BitPackerMember]
         //public short SomeOtherOtherOtherint { get; set; }
@@ -110,8 +111,8 @@ namespace Sandbox
     [BitPackerObject]
     public class TestSubClass
     {
-        [BitPackerMember]
-        public TestSubSubClass SubSubClass { get; set; }
+        //[BitPackerMember]
+        //public TestSubSubClass SubSubClass { get; set; }
     }
 
     [BitPackerObject]
@@ -128,7 +129,7 @@ namespace Sandbox
         public int Length { get; set; }
     }
 
-    public class CustomDeserializer : IDeserializer<TestSubClass>
+    public class CustomSerializer : ICustomSerializer
     {
         public bool HasFixedSize
         {
@@ -140,9 +141,14 @@ namespace Sandbox
             get { return 3; }
         }
 
-        public TestSubClass Deserialize(Stream stream)
+        public Type ContextType
         {
-            return new TestSubClass();
+            get { return typeof(TestSubClass); }
+        }
+
+        public void Serialize(BinaryWriter writer, object subject, object context)
+        {
+            writer.Write(3);
         }
     }
 }
