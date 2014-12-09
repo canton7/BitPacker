@@ -68,9 +68,18 @@ namespace BitPacker
 
         private TypeDetails DeserializeAndAssignValue(Expression subject, TranslationContext context)
         {
-            var typeDetails = this.DeserializeValue(context);
-            var wrappedAssignment = ExpressionHelpers.TryTranslate(Expression.Assign(subject, typeDetails.OperationExpression), context.GetMemberPath());
-            return new TypeDetails(typeDetails.HasFixedSize, typeDetails.MinSize, wrappedAssignment);
+            try
+            {
+                var typeDetails = this.DeserializeValue(context);
+                var wrappedAssignment = ExpressionHelpers.TryTranslate(Expression.Assign(subject, typeDetails.OperationExpression), context.GetMemberPath());
+                return new TypeDetails(typeDetails.HasFixedSize, typeDetails.MinSize, wrappedAssignment);
+            }
+            catch (Exception e)
+            {
+                if (e is BitPackerTranslationException)
+                    throw e;
+                throw new BitPackerTranslationException(context.GetMemberPath(), e);
+            }
         }
 
         private TypeDetails DeserializeValue(TranslationContext context)
@@ -99,41 +108,49 @@ namespace BitPacker
 
         public TypeDetails DeserializeCustomType(TranslationContext context)
         {
-            var objectDetails = context.ObjectDetails;
-
-            // If it's not marked with our attribute, we're not deserializing it
-            if (!objectDetails.IsCustomType)
-                return null;
-
-            var blockMembers = new List<Expression>();
-            var subject = Expression.Variable(objectDetails.Type, objectDetails.Type.Name);
-
-            // TODO Raise a different exception here, to show that it's the constructing that's failed
-            var createAndAssign = Expression.Assign(subject, Expression.New(objectDetails.Type));
-            var wrappedCreateAndAssign = ExpressionHelpers.TryTranslate(createAndAssign, context.GetMemberPath());
-            blockMembers.Add(wrappedCreateAndAssign);
-
-            var typeDetails = objectDetails.Properties.Select(property =>
+            try
             {
-                var newContext = context.Push(property, subject, property.PropertyInfo.Name);
+                var objectDetails = context.ObjectDetails;
 
-                // Does it have a custom deserializer?
-                if (property.CustomDeserializer != null)
+                // If it's not marked with our attribute, we're not deserializing it
+                if (!objectDetails.IsCustomType)
+                    return null;
+
+                var blockMembers = new List<Expression>();
+                var subject = Expression.Variable(objectDetails.Type, objectDetails.Type.Name);
+
+                // TODO Raise a different exception here, to show that it's the constructing that's failed
+                var createAndAssign = Expression.Assign(subject, Expression.New(objectDetails.Type));
+                var wrappedCreateAndAssign = ExpressionHelpers.TryTranslate(createAndAssign, context.GetMemberPath());
+                blockMembers.Add(wrappedCreateAndAssign);
+
+                var typeDetails = objectDetails.Properties.Select(property =>
                 {
-                    return this.CreateAndAssignFromDeserializer(property.CustomDeserializer, property.AccessExpression(subject), newContext);
-                }
-                else
-                {
-                    return this.DeserializeAndAssignValue(property.AccessExpression(subject), newContext);
-                }
-            }).ToArray();
+                    var newContext = context.Push(property, subject, property.PropertyInfo.Name);
 
-            blockMembers.AddRange(typeDetails.Select(x => x.OperationExpression));
-            
+                    if (!property.PropertyInfo.CanWrite)
+                        throw new BitPackerTranslationException("The property must have a public setter", newContext.GetMemberPath());
 
-            blockMembers.Add(subject); // Last value in block is the return value
-            var result = Expression.Block(new[] { subject }, blockMembers.Where(x => x != null));
-            return new TypeDetails(typeDetails.All(x => x.HasFixedSize), typeDetails.Sum(x => x.MinSize), result);
+                    // Does it have a custom deserializer?
+                    if (property.CustomDeserializer != null)
+                        return this.CreateAndAssignFromDeserializer(property.CustomDeserializer, property.AccessExpression(subject), newContext);
+                    else
+                        return this.DeserializeAndAssignValue(property.AccessExpression(subject), newContext);
+                }).ToArray();
+
+                blockMembers.AddRange(typeDetails.Select(x => x.OperationExpression));
+
+
+                blockMembers.Add(subject); // Last value in block is the return value
+                var result = Expression.Block(new[] { subject }, blockMembers.Where(x => x != null));
+                return new TypeDetails(typeDetails.All(x => x.HasFixedSize), typeDetails.Sum(x => x.MinSize), result);
+            }
+            catch (Exception e)
+            {
+                if (e is BitPackerTranslationException)
+                    throw e;
+                throw new BitPackerTranslationException(context.GetMemberPath(), e);
+            }
         }
 
         private TypeDetails DeserializePrimitive(ObjectDetails objectDetails)

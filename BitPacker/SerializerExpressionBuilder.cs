@@ -130,7 +130,12 @@ namespace BitPacker
             Expression result;
             var typeDetails = objectDetails.Properties.Select(property =>
             {
-                return this.SerializeValue(context.Push(property, property.AccessExpression(context.Subject), property.PropertyInfo.Name));
+                var newContext = context.Push(property, property.AccessExpression(context.Subject), property.PropertyInfo.Name);
+
+                if (!property.PropertyInfo.CanRead)
+                    throw new BitPackerTranslationException("The property must have a public getter", newContext.GetMemberPath());
+
+                return this.SerializeValue(newContext);
             }).ToArray();
 
             var blockMembers = typeDetails.Select(x => x.OperationExpression);
@@ -208,7 +213,6 @@ namespace BitPacker
 
             if (info.IsIntegral && objectDetails.BitWidth.HasValue)
             {
-                
                 var convertedValue = Expression.Convert(value, typeof(ulong));
                 var containerSize = Expression.Constant(info.Size);
                 var numBits = Expression.Constant(objectDetails.BitWidth.Value);

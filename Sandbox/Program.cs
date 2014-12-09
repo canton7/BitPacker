@@ -15,7 +15,7 @@ namespace Sandbox
         {
             var buffer = BitPackerTranslate.Serialize(new TestClass()
             {
-                IntField = 3,
+                //IntField = 3,
                 SubClass = new TestSubClass(),
                 //Enum = Test.Bar,
                 //TestBool = true,
@@ -80,7 +80,7 @@ namespace Sandbox
         //public Test Enum { get; set; }
 
         [BitPackerMember]
-        public int IntField { get; set; }
+        public int IntField { set { throw new Exception("BOOM"); } }
 
         [BitPackerMember]
         public TestSubClass SubClass { get; set; }
@@ -112,7 +112,7 @@ namespace Sandbox
         
     }
 
-    [BitPackerObject(Serializer = typeof(CustomSerializer), Deserializer = typeof(CustomDeserializer))]
+    [BitPackerObject]
     public class TestSubClass
     {
         public int Foo { get; set; }
@@ -132,58 +132,5 @@ namespace Sandbox
     {
         [BitPackerArrayLength(LengthKey = "key")]
         public int Length { get; set; }
-    }
-
-    public class CustomDeserializer : ICustomDeserializer
-    {
-        public Type ContextType
-        {
-            get { return typeof(TestClass); }
-        }
-
-        public bool HasFixedSize
-        {
-            get { return true; }
-        }
-
-        public int MinSize
-        {
-            get { return 4; }
-        }
-
-        public object Deserialize(BinaryReader reader, object context)
-        {
-            reader.ReadInt32();
-            return new TestSubClass()
-            {
-                Foo = 1,
-            };
-        }
-    }
-
-    public class CustomSerializer : ICustomSerializer
-    {
-        public bool HasFixedSize
-        {
-            get { return true; }
-        }
-
-        public int MinSize
-        {
-            get { return 4; }
-        }
-
-        public Type ContextType
-        {
-            get { return typeof(TestSubClass); }
-        }
-
-        public void Serialize(BinaryWriter writer, object subject, object context)
-        {
-            writer.Write((byte)3);
-            writer.Write((byte)3);
-            writer.Write((byte)3);
-            writer.Write((byte)3);
-        }
     }
 }
