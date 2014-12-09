@@ -14,19 +14,19 @@ namespace BitPacker
         {
             var primitiveTypes = new IPrimitiveTypeInfo[]
             {
-                new PrimitiveTypeInfo<bool>(sizeof(bool), false, (x, y) => x.Write(y), x => x.ReadBoolean()),
-                new PrimitiveTypeInfo<byte>(sizeof(byte), true, (x, y) => x.Write(y), x => x.ReadByte()),
-                new PrimitiveTypeInfo<char>(sizeof(char), false, (x, y) => x.Write(y), x => x.ReadChar()),
-                new PrimitiveTypeInfo<sbyte>(sizeof(sbyte), true, (x, y) => x.Write(y), x => x.ReadSByte()),
-                new PrimitiveTypeInfo<double>(sizeof(double), false, (x, y) => x.Write(y), x => x.ReadDouble()),
-                new PrimitiveTypeInfo<decimal>(sizeof(decimal), false, (x, y) => x.Write(y), x => x.ReadDecimal()),
-                new PrimitiveTypeInfo<short>(sizeof(short), true, (x, y) => x.Write(y), x => x.ReadInt16()),
-                new PrimitiveTypeInfo<ushort>(sizeof(ushort), true, (x, y) => x.Write(y), x => x.ReadUInt16()),
-                new PrimitiveTypeInfo<int>(sizeof(int), true, (x, y) => x.Write(y), x => x.ReadInt32()),
-                new PrimitiveTypeInfo<uint>(sizeof(uint), true, (x, y) => x.Write(y), x => x.ReadUInt32()),
-                new PrimitiveTypeInfo<long>(sizeof(long), true, (x, y) => x.Write(y), x => x.ReadInt64()),
-                new PrimitiveTypeInfo<ulong>(sizeof(ulong), true, (x, y) => x.Write(y), x => x.ReadUInt64()),
-                new PrimitiveTypeInfo<float>(sizeof(float), false, (x, y) => x.Write(y), x => x.ReadSingle()),
+                PrimitiveTypeInfo<bool>.NonInteger(sizeof(bool),  (x, y) => x.Write(y), x => x.ReadBoolean()),
+                PrimitiveTypeInfo<byte>.Integer(sizeof(byte), false, byte.MinValue, byte.MaxValue, (x, y) => x.Write(y), x => x.ReadByte()),
+                PrimitiveTypeInfo<char>.Integer(sizeof(char), false, char.MinValue, char.MaxValue, (x, y) => x.Write(y), x => x.ReadChar()),
+                PrimitiveTypeInfo<sbyte>.Integer(sizeof(sbyte), true, sbyte.MinValue, sbyte.MaxValue, (x, y) => x.Write(y), x => x.ReadSByte()),
+                PrimitiveTypeInfo<double>.NonInteger(sizeof(double), (x, y) => x.Write(y), x => x.ReadDouble()),
+                PrimitiveTypeInfo<decimal>.NonInteger(sizeof(decimal), (x, y) => x.Write(y), x => x.ReadDecimal()),
+                PrimitiveTypeInfo<short>.Integer(sizeof(short), true, short.MinValue, short.MaxValue, (x, y) => x.Write(y), x => x.ReadInt16()),
+                PrimitiveTypeInfo<ushort>.Integer(sizeof(ushort), false, ushort.MinValue, ushort.MaxValue, (x, y) => x.Write(y), x => x.ReadUInt16()),
+                PrimitiveTypeInfo<int>.Integer(sizeof(int), true, int.MinValue, int.MaxValue, (x, y) => x.Write(y), x => x.ReadInt32()),
+                PrimitiveTypeInfo<uint>.Integer(sizeof(uint), false, uint.MinValue, uint.MaxValue, (x, y) => x.Write(y), x => x.ReadUInt32()),
+                PrimitiveTypeInfo<long>.Integer(sizeof(long), true, long.MinValue, long.MaxValue, (x, y) => x.Write(y), x => x.ReadInt64()),
+                PrimitiveTypeInfo<ulong>.Integer(sizeof(ulong), false, ulong.MinValue, ulong.MaxValue, (x, y) => x.Write(y), x => x.ReadUInt64()),
+                PrimitiveTypeInfo<float>.NonInteger(sizeof(float), (x, y) => x.Write(y), x => x.ReadSingle()),
             };
             Types = primitiveTypes.ToDictionary(x => x.Type, x => x);
         }

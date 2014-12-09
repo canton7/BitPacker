@@ -14,15 +14,21 @@ namespace BitPacker
         Type Type { get; }
         int Size { get; }
         bool IsIntegral { get; }
+        bool IsSigned { get; }
+        ulong MaxValue { get; }
+        long MinValue { get; }
         Expression SerializeExpression(Expression writer, Expression value);
         Expression DeserializeExpression(Expression reader);
     }
 
-    internal class PrimitiveTypeInfo<T> : IPrimitiveTypeInfo
+    internal class PrimitiveTypeInfo<T> : IPrimitiveTypeInfo where T : struct
     {
         private readonly Type type;
         private readonly int size;
         private readonly bool isIntegral;
+        private readonly bool isSigned;
+        private readonly ulong maxValue;
+        private readonly long minValue;
 
         private MethodInfo serializeMethod;
         private MethodInfo deserializeMethod;
@@ -42,11 +48,54 @@ namespace BitPacker
             get { return this.isIntegral; }
         }
 
-        public PrimitiveTypeInfo(int size, bool isIntegral, Expression<Action<BitfieldBinaryWriter, T>> writer, Expression<Func<BitfieldBinaryReader, T>> reader)
+        public bool IsSigned
+        {
+            get
+            {
+                if (!this.IsIntegral)
+                    throw new InvalidOperationException("Not integral");
+                return this.isSigned;
+            }
+        }
+
+        public ulong MaxValue
+        {
+            get
+            {
+                if (!this.IsIntegral)
+                    throw new InvalidOperationException("Not integral");
+                return this.maxValue;
+            }
+        }
+
+        public long MinValue
+        {
+            get
+            {
+                if (!this.IsIntegral)
+                    throw new InvalidOperationException("Not integral");
+                return this.minValue;
+            }
+        }
+
+        public static PrimitiveTypeInfo<T> Integer(int size, bool isSigned, T minValue, T maxValue, Expression<Action<BitfieldBinaryWriter, T>> writer, Expression<Func<BitfieldBinaryReader, T>> reader)
+        {
+            return new PrimitiveTypeInfo<T>(size, true, isSigned, minValue, maxValue, writer, reader);
+        }
+
+        public static PrimitiveTypeInfo<T> NonInteger(int size, Expression<Action<BitfieldBinaryWriter, T>> writer, Expression<Func<BitfieldBinaryReader, T>> reader)
+        {
+            return new PrimitiveTypeInfo<T>(size, false, false, default(T), default(T), writer, reader);
+        }
+
+        private PrimitiveTypeInfo(int size, bool isIntegral, bool isSigned, T minValue, T maxValue, Expression<Action<BitfieldBinaryWriter, T>> writer, Expression<Func<BitfieldBinaryReader, T>> reader)
         {
             this.type = typeof(T);
             this.size = size;
             this.isIntegral = isIntegral;
+            this.isSigned = isSigned;
+            this.minValue = Convert.ToInt64(minValue);
+            this.maxValue = Convert.ToUInt64(maxValue);
 
             this.serializeMethod = ((MethodCallExpression)writer.Body).Method;
             this.deserializeMethod = ((MethodCallExpression)reader.Body).Method;

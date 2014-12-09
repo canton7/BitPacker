@@ -15,10 +15,7 @@ namespace Sandbox
         {
             var buffer = BitPackerTranslate.Serialize(new TestClass()
             {
-                SomeInt = 1,
-                SomeOtherInt = 3,
-                SomeOtherOtherInt = 7,
-                SomeOtherOtherOtherint = 7,
+                Enum = Test.Bar,
                 //TestBool = true,
                 //AnotherTestBool = true,
                 //Enum = Test.Bar,
@@ -57,7 +54,7 @@ namespace Sandbox
         }
     }
 
-    public enum Test { Foo, Bar = 256 };
+    public enum Test : byte { Foo, Bar = 1 };
 
     [BitPackerObject(Endianness=Endianness.BigEndian)]
     public class TestClass
@@ -77,20 +74,20 @@ namespace Sandbox
         //[BitPackerMember]
         //public TestSubClass Test { get; set; }
 
-        //[BitPackerEnum(EnumType = typeof(byte))]
-        //public Test Enum { get; set; }
-
-        [BitPackerInteger(BitWidth = 8)]
-        public short SomeInt { get; set; }
-
-        [BitPackerInteger(BitWidth = 8)]
-        public short SomeOtherInt { get; set; }
-
-        [BitPackerInteger(BitWidth = 8)]
-        public short SomeOtherOtherInt { get; set; }
-
         [BitPackerMember]
-        public short SomeOtherOtherOtherint { get; set; }
+        public Test Enum { get; set; }
+
+        //[BitPackerInteger(BitWidth = 8)]
+        //public short SomeInt { get; set; }
+
+        //[BitPackerInteger(BitWidth = 8)]
+        //public short SomeOtherInt { get; set; }
+
+        //[BitPackerInteger(BitWidth = 8)]
+        //public short SomeOtherOtherInt { get; set; }
+
+        //[BitPackerMember]
+        //public short SomeOtherOtherOtherint { get; set; }
 
         //[BitPackerBoolean(Type = typeof(byte), BitWidth=1)]
         //public bool TestBool { get; set; }

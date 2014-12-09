@@ -263,8 +263,9 @@ namespace BitPacker
             }
             if (this.IsEnum)
             {
-                this.enumEquivalentObjectDetails = new ObjectDetails(this.equivalentType ?? typeof(int), propertyAttribute, this.Endianness, true);
-                this.CheckEnum();
+                var enumType = this.equivalentType ?? Enum.GetUnderlyingType(this.Type);
+                this.enumEquivalentObjectDetails = new ObjectDetails(enumType, propertyAttribute, this.Endianness, true);
+                this.CheckEnum(enumType);
             }
 
             var integerAttribute = propertyAttribute as BitPackerIntegerAttribute;
@@ -285,16 +286,26 @@ namespace BitPacker
             }
         }
 
-        private void CheckEnum()
+        private void CheckEnum(Type enumType)
         {
-            // Check that no value in the enum exceeds the given size
-            var length = PrimitiveTypes.Types[this.equivalentType].Size;
-            var maxVal = Math.Pow(2, length * 8);
-            // Can't use linq, as it's an non-generic IEnumerable of value types
+            var underlyingType = Enum.GetUnderlyingType(this.Type);
+            var underlyingTypeIsSigned = PrimitiveTypes.Types[underlyingType].IsSigned;
+
+            var typeInfo = PrimitiveTypes.Types[enumType];
+
             foreach (var enumVal in Enum.GetValues(this.Type))
             {
-                if ((int)enumVal >= maxVal)
-                    throw new Exception(String.Format("Enum type {0} has a size of {1} bytes, but has a member '{2}' which is greater than this", this.Type, length, enumVal));
+                if (underlyingTypeIsSigned)
+                {
+                    var value = Convert.ToInt64(enumVal);
+                    if (value < typeInfo.MinValue || (value > 0 && (ulong)value > typeInfo.MaxValue))
+                        throw new Exception(String.Format("Enum type {0} has a size of {1} bytes, but has a member '{2}' which does not fit in this", this.Type, typeInfo.Size, enumVal));
+                }
+                else
+                {
+                    if (Convert.ToUInt64(enumVal) > typeInfo.MaxValue)
+                        throw new Exception(String.Format("Enum type {0} has a size of {1} bytes, but has a member '{2}' which does not fit in this", this.Type, typeInfo.Size, enumVal));
+                }
             }
         }
 
