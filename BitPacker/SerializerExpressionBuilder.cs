@@ -144,49 +144,58 @@ namespace BitPacker
         {
             var serializerType = context.ObjectDetails.CustomSerializer;
 
-            if (!serializerType.IsClass || serializerType.IsAbstract || !typeof(ICustomSerializer).IsAssignableFrom(serializerType))
-                throw new Exception("Custom serializer must be a concrete class that implements ICustomSerializer");
-
-            ICustomSerializer serializer = (ICustomSerializer)Activator.CreateInstance(serializerType, false);
-
-            // Try and find them a context, if we can...
-            var contextType = serializer.ContextType;
-            var customContext = context.FindParentContextOfType(serializer.ContextType) ?? Expression.Constant(null);
-            var wrappedInvocation = ExpressionHelpers.TryTranslate(Expression.Call(Expression.Constant(serializer), serializeMethod, this.writer, context.Subject, customContext), context.GetMemberPath());
-
-            var positionAccess = Expression.Property(Expression.Property(this.writer, "BaseStream"), "Position");
-            var beforePositionVar = Expression.Variable(typeof(long), "beforePosition");
-            var beforePositionAssign = Expression.Assign(beforePositionVar, positionAccess);
-
-            var writtenBytes = Expression.Subtract(positionAccess, beforePositionVar);
-
-            Expression check;
-            Expression exceptionMessage;
-            if (serializer.HasFixedSize)
+            try
             {
-                check = Expression.NotEqual(Expression.Convert(Expression.Constant(serializer.MinSize), typeof(long)), writtenBytes);
-                var constMessage = String.Format("Error serializing field {0} using custom serializer {1}: Serializer should have written exactly {2} bytes, but actually wrote {{0}}", String.Join(".", context.GetMemberPath()), serializerType, serializer.MinSize);
-                exceptionMessage = ExpressionHelpers.StringFormat(constMessage, writtenBytes);
+                if (!serializerType.IsClass || serializerType.IsAbstract || !typeof(ICustomSerializer).IsAssignableFrom(serializerType))
+                    throw new Exception("Custom serializer must be a concrete class that implements ICustomSerializer");
+
+                ICustomSerializer serializer = (ICustomSerializer)Activator.CreateInstance(serializerType, false);
+
+                // Try and find them a context, if we can...
+                var contextType = serializer.ContextType;
+                var customContext = context.FindParentContextOfType(serializer.ContextType) ?? Expression.Constant(null);
+                var wrappedInvocation = ExpressionHelpers.TryTranslate(Expression.Call(Expression.Constant(serializer), serializeMethod, this.writer, context.Subject, customContext), context.GetMemberPath());
+
+                var positionAccess = Expression.Property(Expression.Property(this.writer, "BaseStream"), "Position");
+                var beforePositionVar = Expression.Variable(typeof(long), "beforePosition");
+                var beforePositionAssign = Expression.Assign(beforePositionVar, positionAccess);
+
+                var writtenBytes = Expression.Subtract(positionAccess, beforePositionVar);
+
+                Expression check;
+                Expression exceptionMessage;
+                if (serializer.HasFixedSize)
+                {
+                    check = Expression.NotEqual(Expression.Convert(Expression.Constant(serializer.MinSize), typeof(long)), writtenBytes);
+                    var constMessage = String.Format("Error serializing field {0} using custom serializer {1}: Serializer should have written exactly {2} bytes, but actually wrote {{0}}", String.Join(".", context.GetMemberPath()), serializerType, serializer.MinSize);
+                    exceptionMessage = ExpressionHelpers.StringFormat(constMessage, writtenBytes);
+                }
+                else
+                {
+                    check = Expression.GreaterThan(Expression.Convert(Expression.Constant(serializer.MinSize), typeof(long)), writtenBytes);
+                    var constMessage = String.Format("Error serializing field {0} using custom serializer {1}: Serializer should have written {2} bytes or more, but actually wrote {{0}}", String.Join(".", context.GetMemberPath()), serializerType, serializer.MinSize);
+                    exceptionMessage = ExpressionHelpers.StringFormat(constMessage, writtenBytes);
+                }
+
+                var exceptionCtor = typeof(BitPackerTranslationException).GetConstructor(new[] { typeof(string), typeof(List<string>) });
+                var newException = Expression.New(exceptionCtor, exceptionMessage, Expression.Constant(context.GetMemberPath()));
+
+                var checkAndThrow = Expression.IfThen(check, Expression.Throw(newException));
+
+                var block = Expression.Block(new[] { beforePositionVar },
+                    beforePositionAssign,
+                    wrappedInvocation,
+                    checkAndThrow
+                );
+
+                return new TypeDetails(serializer.HasFixedSize, serializer.MinSize, block);
             }
-            else
+            catch (Exception e)
             {
-                check = Expression.GreaterThan(Expression.Convert(Expression.Constant(serializer.MinSize), typeof(long)), writtenBytes);
-                var constMessage = String.Format("Error serializing field {0} using custom serializer {1}: Serializer should have written {2} bytes or more, but actually wrote {{0}}", String.Join(".", context.GetMemberPath()), serializerType, serializer.MinSize);
-                exceptionMessage = ExpressionHelpers.StringFormat(constMessage, writtenBytes);
+                if (e is BitPackerTranslationException)
+                    throw;
+                throw new BitPackerTranslationException("Error creating / executing custom serializer. See InnerException for details", context.GetMemberPath(), e);
             }
-
-            var exceptionCtor = typeof(BitPackerTranslationException).GetConstructor(new[] { typeof(string), typeof(List<string>) });
-            var newException = Expression.New(exceptionCtor, exceptionMessage, Expression.Constant(context.GetMemberPath()));
-
-            var checkAndThrow = Expression.IfThen(check, Expression.Throw(newException));
-
-            var block = Expression.Block(new[] { beforePositionVar },
-                beforePositionAssign,
-                wrappedInvocation,
-                checkAndThrow
-            );
-
-            return new TypeDetails(serializer.HasFixedSize, serializer.MinSize, block);
         }
 
         private TypeDetails SerializePrimitive(TranslationContext context)

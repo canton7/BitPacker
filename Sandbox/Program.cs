@@ -15,6 +15,7 @@ namespace Sandbox
         {
             var buffer = BitPackerTranslate.Serialize(new TestClass()
             {
+                IntField = 3,
                 SubClass = new TestSubClass(),
                 //Enum = Test.Bar,
                 //TestBool = true,
@@ -79,6 +80,9 @@ namespace Sandbox
         //public Test Enum { get; set; }
 
         [BitPackerMember]
+        public int IntField { get; set; }
+
+        [BitPackerMember]
         public TestSubClass SubClass { get; set; }
 
         //[BitPackerInteger(BitWidth = 0, PadContainerAfter = true)]
@@ -134,7 +138,7 @@ namespace Sandbox
     {
         public Type ContextType
         {
-            get { return null; }
+            get { return typeof(TestClass); }
         }
 
         public bool HasFixedSize

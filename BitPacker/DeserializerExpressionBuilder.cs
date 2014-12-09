@@ -366,54 +366,63 @@ namespace BitPacker
 
         private TypeDetails CreateAndAssignFromDeserializer(Type deserializerType, Expression subject, TranslationContext context)
         {
-            if (!deserializerType.IsClass || deserializerType.IsAbstract || !typeof(ICustomDeserializer).IsAssignableFrom(deserializerType))
-                throw new Exception("Custom deserializer must be a concrete class");
-
-            ICustomDeserializer deserializer = (ICustomDeserializer)Activator.CreateInstance(deserializerType, false);
-
-            // Try and find them a context, if we can...
-            var contextType = deserializer.ContextType;
-            var customContext = context.FindParentContextOfType(deserializer.ContextType) ?? Expression.Constant(null);
-            var wrappedInvocation = Expression.Call(Expression.Constant(deserializer), deserializeMethod, this.reader, customContext);
-
-            var positionAccess = Expression.Property(Expression.Property(this.reader, "BaseStream"), "Position");
-
-            var startingPositionVar = Expression.Variable(typeof(long), "beforePosition");
-            var startingPositionAssignment = Expression.Assign(startingPositionVar, positionAccess);
-
-            var wrappedAssignment = ExpressionHelpers.TryTranslate(Expression.Assign(subject, Expression.Convert(wrappedInvocation, context.ObjectDetails.Type)), context.GetMemberPath());
-
-            var readBytesVar = Expression.Variable(typeof(long), "readBytes");
-            var readBytesAssignment = Expression.Assign(readBytesVar, Expression.Subtract(positionAccess, startingPositionVar));
-
-            Expression check;
-            Expression exceptionMessage;
-            if (deserializer.HasFixedSize)
+            try
             {
-                check = Expression.NotEqual(Expression.Convert(Expression.Constant(deserializer.MinSize), typeof(long)), readBytesVar);
-                var constMessage = String.Format("Error deserializing field {0} using custom deserializer {1}: Deserializer should have read {2} bytes, but actually read {{0}}", String.Join(".", context.GetMemberPath()), deserializerType, deserializer.MinSize);
-                exceptionMessage = ExpressionHelpers.StringFormat(constMessage, readBytesVar);
+                if (!deserializerType.IsClass || deserializerType.IsAbstract || !typeof(ICustomDeserializer).IsAssignableFrom(deserializerType))
+                    throw new Exception("Custom deserializer must be a concrete class");
+
+                ICustomDeserializer deserializer = (ICustomDeserializer)Activator.CreateInstance(deserializerType, false);
+
+                // Try and find them a context, if we can...
+                var contextType = deserializer.ContextType;
+                var customContext = context.FindParentContextOfType(deserializer.ContextType) ?? Expression.Constant(null);
+                var wrappedInvocation = Expression.Call(Expression.Constant(deserializer), deserializeMethod, this.reader, customContext);
+
+                var positionAccess = Expression.Property(Expression.Property(this.reader, "BaseStream"), "Position");
+
+                var startingPositionVar = Expression.Variable(typeof(long), "beforePosition");
+                var startingPositionAssignment = Expression.Assign(startingPositionVar, positionAccess);
+
+                var wrappedAssignment = ExpressionHelpers.TryTranslate(Expression.Assign(subject, Expression.Convert(wrappedInvocation, context.ObjectDetails.Type)), context.GetMemberPath());
+
+                var readBytesVar = Expression.Variable(typeof(long), "readBytes");
+                var readBytesAssignment = Expression.Assign(readBytesVar, Expression.Subtract(positionAccess, startingPositionVar));
+
+                Expression check;
+                Expression exceptionMessage;
+                if (deserializer.HasFixedSize)
+                {
+                    check = Expression.NotEqual(Expression.Convert(Expression.Constant(deserializer.MinSize), typeof(long)), readBytesVar);
+                    var constMessage = String.Format("Error deserializing field {0} using custom deserializer {1}: Deserializer should have read {2} bytes, but actually read {{0}}", String.Join(".", context.GetMemberPath()), deserializerType, deserializer.MinSize);
+                    exceptionMessage = ExpressionHelpers.StringFormat(constMessage, readBytesVar);
+                }
+                else
+                {
+                    check = Expression.GreaterThan(Expression.Convert(Expression.Constant(deserializer.MinSize), typeof(long)), readBytesVar);
+                    var constMessage = String.Format("Error deserializing field {0} using custom deserializer {1}: Deserializer should have read {2} bytes or more, but actually read {{0}}", String.Join(".", context.GetMemberPath()), deserializerType, deserializer.MinSize);
+                    exceptionMessage = ExpressionHelpers.StringFormat(constMessage, readBytesVar);
+                }
+
+                var exceptionCtor = typeof(BitPackerTranslationException).GetConstructor(new[] { typeof(string), typeof(List<string>) });
+                var newException = Expression.New(exceptionCtor, exceptionMessage, Expression.Constant(context.GetMemberPath()));
+
+                var checkAndThrow = Expression.IfThen(check, Expression.Throw(newException));
+
+                var block = Expression.Block(new[] { startingPositionVar, readBytesVar },
+                    startingPositionAssignment,
+                    wrappedAssignment,
+                    readBytesAssignment,
+                    checkAndThrow
+                );
+
+                return new TypeDetails(deserializer.HasFixedSize, deserializer.MinSize, block);
             }
-            else
+            catch (Exception e)
             {
-                check = Expression.GreaterThan(Expression.Convert(Expression.Constant(deserializer.MinSize), typeof(long)), readBytesVar);
-                var constMessage = String.Format("Error deserializing field {0} using custom deserializer {1}: Deserializer should have read {2} bytes or more, but actually read {{0}}", String.Join(".", context.GetMemberPath()), deserializerType, deserializer.MinSize);
-                exceptionMessage = ExpressionHelpers.StringFormat(constMessage, readBytesVar);
+                if (e is BitPackerTranslationException)
+                    throw;
+                throw new BitPackerTranslationException("Error creating / executing custom deserializer. See InnerException for details", context.GetMemberPath(), e);
             }
-
-            var exceptionCtor = typeof(BitPackerTranslationException).GetConstructor(new[] { typeof(string), typeof(List<string>) });
-            var newException = Expression.New(exceptionCtor, exceptionMessage, Expression.Constant(context.GetMemberPath()));
-
-            var checkAndThrow = Expression.IfThen(check, Expression.Throw(newException));
-
-            var block = Expression.Block(new[] { startingPositionVar, readBytesVar },
-                startingPositionAssignment,
-                wrappedAssignment,
-                readBytesAssignment,
-                checkAndThrow
-            );
-
-            return new TypeDetails(deserializer.HasFixedSize, deserializer.MinSize, block);
         }
     }
 }

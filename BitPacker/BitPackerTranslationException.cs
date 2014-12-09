@@ -11,13 +11,15 @@ namespace BitPacker
         public IReadOnlyList<string> MemberPath { get; private set; }
 
         public BitPackerTranslationException(string message, List<string> memberPath)
-            : base(message)
-        {
-            this.MemberPath = memberPath.AsReadOnly();
-        }
+            : this(message, memberPath, null)
+        { }
 
         public BitPackerTranslationException(List<string> memberPath, Exception innerException)
-            : base(String.Format("Error translating field {0}. See InnerException for details", String.Join(".", memberPath)), innerException)
+            : this("See InnerException for details", memberPath, innerException)
+        { }
+
+        public BitPackerTranslationException(string message, List<string> memberPath, Exception innerException)
+            : base(String.Format("Error translating field {0}: {1}", String.Join(".", memberPath), message), innerException)
         {
             this.MemberPath = memberPath.AsReadOnly();
         }
