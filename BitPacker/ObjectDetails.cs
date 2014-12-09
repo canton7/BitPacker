@@ -217,13 +217,13 @@ namespace BitPacker
             if (propertyAttribute.NullableEndianness != null)
                 this.endianness = propertyAttribute.NullableEndianness.Value;
 
-            this.customSerializer = propertyAttribute.CustomSerializer;
+            this.customSerializer = propertyAttribute.Serializer;
             if (this.customSerializer == null && this.objectAttribute != null)
-                this.customSerializer = this.objectAttribute.CustomSerializer;
+                this.customSerializer = this.objectAttribute.Serializer;
 
-            this.customDeserializer = propertyAttribute.CustomDeserializer;
+            this.customDeserializer = propertyAttribute.Deserializer;
             if (this.customDeserializer == null && this.objectAttribute != null)
-                this.customDeserializer = this.objectAttribute.CustomDeserializer;
+                this.customDeserializer = this.objectAttribute.Deserializer;
 
             // Strings are a special sort of array, reeeeally...
             // Strings have a bit extra - so handle that, then let the array handling kick in

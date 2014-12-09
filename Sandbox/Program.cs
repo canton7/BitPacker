@@ -108,7 +108,7 @@ namespace Sandbox
         
     }
 
-    [BitPackerObject(CustomSerializer = typeof(CustomSerializer), CustomDeserializer = typeof(CustomDeserializer))]
+    [BitPackerObject(Serializer = typeof(CustomSerializer), Deserializer = typeof(CustomDeserializer))]
     public class TestSubClass
     {
         public int Foo { get; set; }
