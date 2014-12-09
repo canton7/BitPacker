@@ -89,6 +89,9 @@ namespace BitPacker
         {
             var objectDetails = context.ObjectDetails;
 
+            if (objectDetails.Type == typeof(bool))
+                return this.SerializeBoolean(context);
+
             if (objectDetails.IsString)
                 return this.SerializeString(context);
 
@@ -169,14 +172,17 @@ namespace BitPacker
 
         private TypeDetails SerializeEnum(TranslationContext context)
         {
-            var newContext = context.Push(context.ObjectDetails.EnumEquivalentObjectDetails, Expression.Convert(context.Subject, context.ObjectDetails.EquivalentType), null);
+            var equivalentObjectDetails = context.ObjectDetails.EnumEquivalentObjectDetails;
+            var newContext = context.Push(equivalentObjectDetails, Expression.Convert(context.Subject, equivalentObjectDetails.Type), null);
             return this.SerializePrimitive(newContext);
         }
 
         private TypeDetails SerializeBoolean(TranslationContext context)
         {
-            var type = context.ObjectDetails.EquivalentType;
-            var value = Expression.Condition(context.Subject, Expression.Constant(1, type), Expression.Constant(0, type));)
+            var type = context.ObjectDetails.BooleanEquivalentObjectDetails.Type;
+            var value = Expression.Condition(context.Subject, Expression.Convert(Expression.Constant(1), type), Expression.Convert(Expression.Constant(0), type));
+            var newContext = context.Push(context.ObjectDetails.BooleanEquivalentObjectDetails, value, null);
+            return this.SerializePrimitive(newContext);
         }
 
         private TypeDetails SerializeString(TranslationContext context)

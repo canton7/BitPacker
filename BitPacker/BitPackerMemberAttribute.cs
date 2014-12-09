@@ -31,9 +31,9 @@ namespace BitPacker
     }
 
     [AttributeUsage(AttributeTargets.Property, Inherited = false, AllowMultiple = false)]
-    public sealed class BitPackerEnumAttribute : BitPackerMemberAttribute
+    public sealed class BitPackerEnumAttribute : BitPackerIntegerAttribute
     {
-        public Type EnumType { get; set; }
+        public Type Type { get; set; }
 
         public BitPackerEnumAttribute([CallerLineNumber] int order = 0)
             : base(order)
@@ -82,13 +82,11 @@ namespace BitPacker
     [AttributeUsage(AttributeTargets.Property, Inherited = false, AllowMultiple = false)]
     public sealed class BitPackerBooleanAttribute : BitPackerIntegerAttribute
     {
-        public Type IntegerType { get; set; }
+        public Type Type { get; set; }
 
         public BitPackerBooleanAttribute([CallerLineNumber] int order = 0)
             : base(order)
-        {
-            this.IntegerType = typeof(int);
-        }
+        { }
     }
 
     [AttributeUsage(AttributeTargets.Property, Inherited = false, AllowMultiple = false)]
