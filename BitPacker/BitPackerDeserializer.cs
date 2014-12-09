@@ -10,7 +10,7 @@ namespace BitPacker
 {
     public class BitPackerDeserializer : IDeserializer
     {
-        private Func<BinaryReader, object> deserializer;
+        private Func<BitfieldBinaryReader, object> deserializer;
         private Type subjectType;
 
         public bool HasFixedSize { get; private set; }
@@ -20,7 +20,7 @@ namespace BitPacker
         {
             this.subjectType = subjectType;
 
-            var reader = Expression.Parameter(typeof(BinaryReader), "reader");
+            var reader = Expression.Parameter(typeof(BitfieldBinaryReader), "reader");
 
             var builder = new DeserializerExpressionBuilder(reader, subjectType);
             var typeDetails = builder.Deserialize();
@@ -28,12 +28,15 @@ namespace BitPacker
             this.HasFixedSize = typeDetails.HasFixedSize;
             this.MinSize = typeDetails.MinSize;
 
-            this.deserializer = Expression.Lambda<Func<BinaryReader, object>>(typeDetails.OperationExpression, reader).Compile();
+            this.deserializer = Expression.Lambda<Func<BitfieldBinaryReader, object>>(typeDetails.OperationExpression, reader).Compile();
         }
 
-        public object Deserialize(BinaryReader reader)
+        public object Deserialize(Stream stream)
         {
-            return this.deserializer(reader);
+            using (var reader = new BitfieldBinaryReader(stream))
+            {
+                return this.deserializer(reader);
+            }
         }
     }
 
@@ -45,7 +48,7 @@ namespace BitPacker
             get { return lazy.Value; }
         }
 
-        private Func<BinaryReader, T> deserializer;
+        private Func<BitfieldBinaryReader, T> deserializer;
 
         public bool HasFixedSize { get; private set; }
         public int MinSize { get; private set; }
@@ -54,7 +57,7 @@ namespace BitPacker
         {
             var subjectType = typeof(T);
 
-            var reader = Expression.Parameter(typeof(BinaryReader), "reader");
+            var reader = Expression.Parameter(typeof(BitfieldBinaryReader), "reader");
 
             var builder = new DeserializerExpressionBuilder(reader, subjectType);
             var typeDetails = builder.Deserialize();
@@ -62,12 +65,15 @@ namespace BitPacker
             this.HasFixedSize = typeDetails.HasFixedSize;
             this.MinSize = typeDetails.MinSize;
 
-            this.deserializer = Expression.Lambda<Func<BinaryReader, T>>(typeDetails.OperationExpression, reader).Compile();
+            this.deserializer = Expression.Lambda<Func<BitfieldBinaryReader, T>>(typeDetails.OperationExpression, reader).Compile();
         }
 
-        public T Deserialize(BinaryReader reader)
+        public T Deserialize(Stream stream)
         {
-            return this.deserializer(reader);
+            using (var reader = new BitfieldBinaryReader(stream))
+            {
+                return this.deserializer(reader);
+            }
         }
     }
 }

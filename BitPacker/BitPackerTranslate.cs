@@ -43,9 +43,9 @@ namespace BitPacker
             return nongenericDeserializerCache.GetOrAdd(type, t => new BitPackerDeserializer(t));
         }
 
-        public static T Deserialize<T>(BinaryReader reader)
+        public static T Deserialize<T>(Stream stream)
         {
-            return BitPackerDeserializer<T>.Instance.Deserialize(reader);
+            return BitPackerDeserializer<T>.Instance.Deserialize(stream);
         }
 
         public static T Deserialize<T>(byte[] buffer)

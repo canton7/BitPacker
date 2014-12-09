@@ -12,7 +12,7 @@ namespace BitPacker
         bool HasFixedSize { get; }
         int MinSize { get; }
 
-        T Deserialize(BinaryReader reader);
+        T Deserialize(Stream stream);
     }
 
     public interface IDeserializer
@@ -20,7 +20,7 @@ namespace BitPacker
         bool HasFixedSize { get; }
         int MinSize { get; }
 
-        object Deserialize(BinaryReader reader);
+        object Deserialize(Stream stream);
     }
 
     public static class DeserializerExtensions
@@ -28,18 +28,16 @@ namespace BitPacker
         public static T Deserialize<T>(this IDeserializer<T> deserializer, byte[] buffer)
         {
             using (var ms = new MemoryStream(buffer))
-            using (var reader = new BinaryReader(ms))
             {
-                return deserializer.Deserialize(reader);
+                return deserializer.Deserialize(ms);
             }
         }
 
         public static object Deserialize(this IDeserializer deserializer, byte[] buffer)
         {
             using (var ms = new MemoryStream())
-            using (var reader = new BinaryReader(ms))
             {
-                return deserializer.Deserialize(reader);
+                return deserializer.Deserialize(ms);
             }
         }
     }

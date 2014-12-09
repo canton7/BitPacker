@@ -14,13 +14,10 @@ namespace BitPacker
         private int containerBitsInUse;
         private bool swapContainerEndianness;
 
-        //private int scratchBitsInUse;
-        //private byte bitScratchpad;
-
         public BitfieldBinaryWriter(Stream output) : base(output, Encoding.UTF8, true)
         { }
 
-        private void FlushBitfield()
+        private void FlushContainer()
         {
             if (this.containerBitsInUse > 0)
             {
@@ -50,7 +47,7 @@ namespace BitPacker
             // Special-case
             if (numBits == 0)
             {
-                this.FlushBitfield();
+                this.FlushContainer();
                 return;
             }
 
@@ -62,10 +59,8 @@ namespace BitPacker
                 throw new ArgumentException("Value contains bits set above those permitted by numBits");
 
             // Can we write it to the same container?
-            if (containerSize != this.containerSize || (this.containerSize * 8 - this.containerBitsInUse < numBits))
-            {
-                this.FlushBitfield();
-            }
+            if (containerSize != this.containerSize || (this.containerSize * 8 - this.containerBitsInUse) < numBits)
+                this.FlushContainer();
 
             // Do we have conflicting endianness, if there's an existing container?
             if (this.containerSize > 0 && this.swapContainerEndianness != swapContainerEndianness)
@@ -83,125 +78,125 @@ namespace BitPacker
             this.containerBitsInUse += numBits;
         }
 
-        #region Overrides to call FlushBitfield
+        #region Overrides to call FlushContainer
 
         public override void Flush()
         {
-            this.FlushBitfield();
+            this.FlushContainer();
             base.Flush();
         }
 
         protected override void Dispose(bool disposing)
         {
-            this.FlushBitfield();
+            this.FlushContainer();
             base.Dispose(disposing);
         }
 
         public override void Write(bool value)
         {
-            this.FlushBitfield();
+            this.FlushContainer();
             base.Write(value);
         }
 
         public override void Write(byte value)
         {
-            this.FlushBitfield();
+            this.FlushContainer();
             base.Write(value);
         }
 
         public override void Write(char ch)
         {
-            this.FlushBitfield();
+            this.FlushContainer();
             base.Write(ch);
         }
 
         public override void Write(sbyte value)
         {
-            this.FlushBitfield();
+            this.FlushContainer();
             base.Write(value);
         }
 
         public override void Write(double value)
         {
-            this.FlushBitfield();
+            this.FlushContainer();
             base.Write(value);
         }
 
         public override void Write(decimal value)
         {
-            this.FlushBitfield();
+            this.FlushContainer();
             base.Write(value);
         }
 
         public override void Write(short value)
         {
-            this.FlushBitfield();
+            this.FlushContainer();
             base.Write(value);
         }
 
         public override void Write(ushort value)
         {
-            this.FlushBitfield();
+            this.FlushContainer();
             base.Write(value);
         }
 
         public override void Write(int value)
         {
-            this.FlushBitfield();
+            this.FlushContainer();
             base.Write(value);
         }
 
         public override void Write(uint value)
         {
-            this.FlushBitfield();
+            this.FlushContainer();
             base.Write(value);
         }
 
         public override void Write(long value)
         {
-            this.FlushBitfield();
+            this.FlushContainer();
             base.Write(value);
         }
 
         public override void Write(ulong value)
         {
-            this.FlushBitfield();
+            this.FlushContainer();
             base.Write(value);
         }
 
         public override void Write(float value)
         {
-            this.FlushBitfield();
+            this.FlushContainer();
             base.Write(value);
         }
 
         public override void Write(byte[] buffer)
         {
-            this.FlushBitfield();
+            this.FlushContainer();
             base.Write(buffer);
         }
 
         public override void Write(char[] chars)
         {
-            this.FlushBitfield();
+            this.FlushContainer();
             base.Write(chars);
         }
 
         public override void Write(byte[] buffer, int index, int count)
         {
-            this.FlushBitfield();
+            this.FlushContainer();
             base.Write(buffer, index, count);
         }
 
         public override void Write(char[] chars, int index, int count)
         {
-            this.FlushBitfield();
+            this.FlushContainer();
             base.Write(chars, index, count);
         }
 
         public override void Write(string value)
         {
-            this.FlushBitfield();
+            this.FlushContainer();
             base.Write(value);
         }
 

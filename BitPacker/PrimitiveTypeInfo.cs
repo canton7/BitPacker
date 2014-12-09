@@ -42,7 +42,7 @@ namespace BitPacker
             get { return this.isIntegral; }
         }
 
-        public PrimitiveTypeInfo(int size, bool isIntegral, Expression<Action<BinaryWriter, T>> writer, Expression<Func<BinaryReader, T>> reader)
+        public PrimitiveTypeInfo(int size, bool isIntegral, Expression<Action<BitfieldBinaryWriter, T>> writer, Expression<Func<BitfieldBinaryReader, T>> reader)
         {
             this.type = typeof(T);
             this.size = size;

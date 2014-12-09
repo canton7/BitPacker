@@ -13,8 +13,8 @@ namespace BitPacker
 {
     public class BitPackerSerializer : ISerializer
     {
-        protected internal Action<BinaryWriter, object> serializer;
-        protected internal Type subjectType;
+        internal Action<BitfieldBinaryWriter, object> serializer;
+        internal Type subjectType;
 
         public bool HasFixedSize { get; private set; }
         public int MinSize { get; private set; }
@@ -23,7 +23,7 @@ namespace BitPacker
         {
             this.subjectType = subjectType;
 
-            var writer = Expression.Parameter(typeof(BinaryWriter), "writer");
+            var writer = Expression.Parameter(typeof(BitfieldBinaryWriter), "writer");
             var subject = Expression.Parameter(typeof(object), "subject");
 
             var subjectVar = Expression.Variable(subjectType, "typedSubject");
@@ -36,7 +36,7 @@ namespace BitPacker
             this.MinSize = typeDetails.MinSize;
 
             var block = Expression.Block(new[] { subjectVar }, assignment, typeDetails.OperationExpression);
-            this.serializer = Expression.Lambda<Action<BinaryWriter, object>>(block, writer, subject).Compile();
+            this.serializer = Expression.Lambda<Action<BitfieldBinaryWriter, object>>(block, writer, subject).Compile();
         }
 
         private void CheckType(object subject)

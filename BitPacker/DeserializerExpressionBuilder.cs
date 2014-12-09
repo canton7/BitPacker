@@ -133,17 +133,31 @@ namespace BitPacker
             // Therefore, handle this..
 
             var info = PrimitiveTypes.Types[objectDetails.Type];
-            var value = info.DeserializeExpression(this.reader);
+            Expression readExpression;
 
-            if (objectDetails.Endianness != EndianUtilities.HostEndianness && info.Size > 1)
+            if (info.IsIntegral && objectDetails.BitWidth.HasValue)
+            {
+                var readMethod = typeof(BitfieldBinaryReader).GetMethod("ReadBitfield", new[] { typeof(int), typeof(int), typeof(bool) });
+                var containerSize = Expression.Constant(info.Size);
+                var numBits = Expression.Constant(objectDetails.BitWidth.Value);
+                var swapEndianness = Expression.Constant(objectDetails.Endianness != EndianUtilities.HostEndianness);
+                var readValue = Expression.Call(this.reader, readMethod, containerSize, numBits, swapEndianness);
+                readExpression = Expression.Convert(readValue, objectDetails.Type);
+            }
+            else if (objectDetails.Endianness != EndianUtilities.HostEndianness && info.Size > 1)
             {
                 // If EndianUtilities has a Swap method for this type, then we can convert it
                 var swapMethod = typeof(EndianUtilities).GetMethod("Swap", new[] { objectDetails.Type });
+                readExpression = info.DeserializeExpression(this.reader);
                 if (swapMethod != null)
-                    value = Expression.Call(swapMethod, value);
+                    readExpression = Expression.Call(swapMethod, readExpression);
+            }
+            else
+            {
+                readExpression = info.DeserializeExpression(this.reader);
             }
 
-            return new TypeDetails(true, info.Size, value);
+            return new TypeDetails(true, info.Size, readExpression);
         }
 
         private TypeDetails DeserializeEnum(ObjectDetails objectDetails)
@@ -204,7 +218,7 @@ namespace BitPacker
                 var arrayLength = this.GetArrayLength(context, out arrayPaddingLength);
                 var blockMembers = new List<Expression>();
 
-                var readBytesMethod = typeof(BinaryReader).GetMethod("ReadBytes", new[] { typeof(int) });
+                var readBytesMethod = typeof(BitfieldBinaryReader).GetMethod("ReadBytes", new[] { typeof(int) });
                 var bytesArrayVar = Expression.Variable(typeof(byte[]), "bytes");
                 blockMembers.Add(Expression.Assign(bytesArrayVar, Expression.Call(this.reader, readBytesMethod, arrayLength)));
                 if (arrayPaddingLength != null)
@@ -237,7 +251,7 @@ namespace BitPacker
 
                 var breakLabel = Expression.Label("LoopBreak");
                 var byteVar = Expression.Variable(typeof(byte), "byte");
-                var readByteMethod = typeof(BinaryReader).GetMethod("ReadByte");
+                var readByteMethod = typeof(BitfieldBinaryReader).GetMethod("ReadByte");
                 var listAddMethod = typeof(List<byte>).GetMethod("Add", new[] { typeof(byte) });
 
                 var loopContents = Expression.Block(new[] { byteVar },
@@ -298,7 +312,7 @@ namespace BitPacker
                 // If it's got a fixed size, we can just call ReadBytes once for the whole lot
                 if (typeDetails.HasFixedSize)
                 {
-                    var readBytesMethod = typeof(BinaryReader).GetMethod("ReadBytes", new[] { typeof(int) });
+                    var readBytesMethod = typeof(BitfieldBinaryReader).GetMethod("ReadBytes", new[] { typeof(int) });
                     var readLength = Expression.Multiply(Expression.Constant(typeDetails.MinSize), arrayPaddingLength);
                     paddingLoop = Expression.Call(this.reader, readBytesMethod, readLength);
                 }

@@ -15,8 +15,12 @@ namespace Sandbox
         {
             var buffer = BitPackerTranslate.Serialize(new TestClass()
             {
-                TestBool = true,
-                AnotherTestBool = true,
+                SomeInt = 1,
+                SomeOtherInt = 3,
+                SomeOtherOtherInt = 7,
+                SomeOtherOtherOtherint = 7,
+                //TestBool = true,
+                //AnotherTestBool = true,
                 //Enum = Test.Bar,
                 //StringLength = 10,
                 //StringMember = "testy",
@@ -55,7 +59,7 @@ namespace Sandbox
 
     public enum Test { Foo, Bar = 256 };
 
-    [BitPackerObject(Endianness=Endianness.NetworkEndian)]
+    [BitPackerObject(Endianness=Endianness.BigEndian)]
     public class TestClass
     {
         //[BitPackerMember(CustomDeserializer = typeof(CustomDeserializer))]
@@ -76,20 +80,23 @@ namespace Sandbox
         //[BitPackerEnum(EnumType = typeof(byte))]
         //public Test Enum { get; set; }
 
-        //[BitPackerInteger(BitWidth = 8)]
-        //public short SomeInt { get; set; }
+        [BitPackerInteger(BitWidth = 8)]
+        public short SomeInt { get; set; }
 
-        //[BitPackerInteger(BitWidth = 7)]
-        //public short SomeOtherInt { get; set; }
+        [BitPackerInteger(BitWidth = 8)]
+        public short SomeOtherInt { get; set; }
 
-        //[BitPackerInteger(BitWidth = 8)]
-        //public short SomeOtherOtherInt { get; set; }
+        [BitPackerInteger(BitWidth = 8)]
+        public short SomeOtherOtherInt { get; set; }
 
-        [BitPackerBoolean(Type = typeof(byte), BitWidth=1)]
-        public bool TestBool { get; set; }
+        [BitPackerMember]
+        public short SomeOtherOtherOtherint { get; set; }
 
-        [BitPackerBoolean(Type = typeof(byte), BitWidth = 1)]
-        public bool AnotherTestBool { get; set; }
+        //[BitPackerBoolean(Type = typeof(byte), BitWidth=1)]
+        //public bool TestBool { get; set; }
+
+        //[BitPackerBoolean(Type = typeof(byte), BitWidth = 1)]
+        //public bool AnotherTestBool { get; set; }
 
         //[BitPackerArrayLength(LengthKey = "key")]
         //public int Length
@@ -133,7 +140,7 @@ namespace Sandbox
             get { return 3; }
         }
 
-        public TestSubClass Deserialize(BinaryReader reader)
+        public TestSubClass Deserialize(Stream stream)
         {
             return new TestSubClass();
         }

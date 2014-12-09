@@ -148,7 +148,7 @@ namespace BitPacker
                 var writeMethod = typeof(BitfieldBinaryWriter).GetMethod("WriteBitfield", new[] { typeof(ulong), typeof(int), typeof(int), typeof(bool) });
                 var convertedValue = Expression.Convert(value, typeof(ulong));
                 var containerSize = Expression.Constant(info.Size);
-                var numBits = Expression.Constant(objectDetails.BitWidth.GetValueOrDefault(0));
+                var numBits = Expression.Constant(objectDetails.BitWidth.Value);
                 var swapEndianness = Expression.Constant(objectDetails.Endianness != EndianUtilities.HostEndianness);
                 writeExpression = Expression.Call(this.writer, writeMethod, convertedValue, containerSize, numBits, swapEndianness);
             }

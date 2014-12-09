@@ -39,6 +39,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="BitfieldBinaryReader.cs" />
     <Compile Include="BitfieldBinaryWriter.cs" />
     <Compile Include="BitPackerTranslate.cs" />
     <Compile Include="BitPackerDeserializer.cs" />
