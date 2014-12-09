@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -10,6 +11,9 @@ namespace BitPacker
 {
     internal static class ExpressionHelpers
     {
+        private static readonly MethodInfo moveNextMethod = typeof(IEnumerator).GetMethod("MoveNext", new Type[0]);
+        private static readonly MethodInfo stringFormatMethod = typeof(String).GetMethod("Format", new[] { typeof(string), typeof(string[]) });
+
         public static Expression ForEach(Expression collection, Type elementType, ParameterExpression loopVar, Expression loopContent)
         {
             var enumerableType = typeof(IEnumerable<>).MakeGenericType(elementType);
@@ -20,7 +24,7 @@ namespace BitPacker
             var enumeratorAssign = Expression.Assign(enumeratorVar, getEnumeratorCall);
 
             // The MoveNext method's actually on IEnumerator, not IEnumerator<T>
-            var moveNextCall = Expression.Call(enumeratorVar, typeof(IEnumerator).GetMethod("MoveNext"));
+            var moveNextCall = Expression.Call(enumeratorVar, moveNextMethod);
 
             var breakLabel = Expression.Label("LoopBreak");
 
@@ -119,9 +123,8 @@ namespace BitPacker
 
         public static Expression StringFormat(string format, params Expression[] args)
         {
-            var method = typeof(String).GetMethod("Format", new[] { typeof(string), typeof(string[]) });
             var objArray = Expression.NewArrayInit(typeof(object), args.Select(x => Expression.Convert(x, typeof(object))));
-            return Expression.Call(method, new Expression[] { Expression.Constant(format), objArray });
+            return Expression.Call(stringFormatMethod, new Expression[] { Expression.Constant(format), objArray });
         }
     }
 }
