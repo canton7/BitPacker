@@ -18,7 +18,7 @@ namespace BitPacker
         { }
 
 
-        private void FlushContainer()
+        public void FlushContainer()
         {
             // Just mark it as empty...
             this.container = 0;

@@ -17,7 +17,7 @@ namespace BitPacker
         public BitfieldBinaryWriter(Stream output) : base(output, Encoding.UTF8, true)
         { }
 
-        private void FlushContainer()
+        public void FlushContainer()
         {
             if (this.containerBitsInUse > 0)
             {
@@ -44,12 +44,8 @@ namespace BitPacker
 
         public void WriteBitfield(ulong value, int containerSize, int numBits, bool swapContainerEndianness)
         {
-            // Special-case
-            if (numBits == 0)
-            {
-                this.FlushContainer();
-                return;
-            }
+            if (numBits <= 0)
+                throw new ArgumentException("numBits must be > 0", "numBits");
 
             if (numBits > containerSize * 8)
                 throw new ArgumentException("Cannot have a number of bits to write which is greater than the container size");

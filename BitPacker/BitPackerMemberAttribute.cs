@@ -74,6 +74,8 @@ namespace BitPacker
             set { this.NullableBitWidth = value; }
         }
 
+        public bool PadContainerAfter { get; set; }
+
         public BitPackerIntegerAttribute([CallerLineNumber] int order = 0)
             : base(order)
         { }

@@ -13,6 +13,7 @@ namespace BitPacker
     internal class SerializerExpressionBuilder
     {
         private static readonly MethodInfo writeBitfieldMethod = typeof(BitfieldBinaryWriter).GetMethod("WriteBitfield", new[] { typeof(ulong), typeof(int), typeof(int), typeof(bool) });
+        private static readonly MethodInfo flushContainerMethod = typeof(BitfieldBinaryWriter).GetMethod("FlushContainer", new Type[0]);
         private static readonly MethodInfo getByteCountMethod = typeof(Encoding).GetMethod("GetByteCount", new[] { typeof(string) });
         private static readonly MethodInfo getBytesMethod = typeof(Encoding).GetMethod("GetBytes", new[] { typeof(string), typeof(int), typeof(int), typeof(byte[]), typeof(int) });
 
@@ -150,7 +151,11 @@ namespace BitPacker
                 var containerSize = Expression.Constant(info.Size);
                 var numBits = Expression.Constant(objectDetails.BitWidth.Value);
                 var swapEndianness = Expression.Constant(objectDetails.Endianness != EndianUtilities.HostEndianness);
-                writeExpression = Expression.Call(this.writer, writeBitfieldMethod, convertedValue, containerSize, numBits, swapEndianness);
+                var writeBitfield = Expression.Call(this.writer, writeBitfieldMethod, convertedValue, containerSize, numBits, swapEndianness);
+                if (objectDetails.PadContainerAfter)
+                    writeExpression = Expression.Block(writeBitfield, Expression.Call(this.writer, flushContainerMethod));
+                else
+                    writeExpression = writeBitfield;
             }
             // Even through EndiannessUtilities has now Swap(byte) overload, we get an AmbiguousMatchException
             // when we try and find such a method (maybe the byte is being coerced into an int or something?).

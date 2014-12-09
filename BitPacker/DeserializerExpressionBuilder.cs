@@ -13,6 +13,7 @@ namespace BitPacker
     internal class DeserializerExpressionBuilder
     {
         private static readonly MethodInfo readBitfieldMethod = typeof(BitfieldBinaryReader).GetMethod("ReadBitfield", new[] { typeof(int), typeof(int), typeof(bool) });
+        private static readonly MethodInfo flushContainerMethod = typeof(BitfieldBinaryReader).GetMethod("FlushContainer", new Type[0]);
         private static readonly MethodInfo getStringMethod = typeof(Encoding).GetMethod("GetString", new[] { typeof(byte[]) });
         private static readonly MethodInfo readBytesMethod = typeof(BitfieldBinaryReader).GetMethod("ReadBytes", new[] { typeof(int) });
         private static readonly MethodInfo TrimEndMethod = typeof(string).GetMethod("TrimEnd", new[] { typeof(char[]) });
@@ -150,7 +151,20 @@ namespace BitPacker
                 var numBits = Expression.Constant(objectDetails.BitWidth.Value);
                 var swapEndianness = Expression.Constant(objectDetails.Endianness != EndianUtilities.HostEndianness);
                 var readValue = Expression.Call(this.reader, readBitfieldMethod, containerSize, numBits, swapEndianness);
-                readExpression = Expression.Convert(readValue, objectDetails.Type);
+                var converted = Expression.Convert(readValue, objectDetails.Type);
+                if (objectDetails.PadContainerAfter)
+                {
+                    var valueVar = Expression.Variable(objectDetails.Type, "value");
+                    readExpression = Expression.Block(new[] { valueVar },
+                        Expression.Assign(valueVar, converted),
+                        Expression.Call(this.reader, flushContainerMethod),
+                        valueVar
+                    );
+                }
+                else
+                {
+                    readExpression = converted;
+                }
             }
             else if (objectDetails.Endianness != EndianUtilities.HostEndianness && info.Size > 1)
             {

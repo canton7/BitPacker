@@ -15,7 +15,10 @@ namespace Sandbox
         {
             var buffer = BitPackerTranslate.Serialize(new TestClass()
             {
-                Enum = Test.Bar,
+                SomeInt = 1,
+                SomeOtherInt = 3,
+                SomeOtherOtherInt = 7
+                //Enum = Test.Bar,
                 //TestBool = true,
                 //AnotherTestBool = true,
                 //Enum = Test.Bar,
@@ -74,17 +77,17 @@ namespace Sandbox
         //[BitPackerMember]
         //public TestSubClass Test { get; set; }
 
-        [BitPackerMember]
-        public Test Enum { get; set; }
+        //[BitPackerMember]
+        //public Test Enum { get; set; }
 
-        //[BitPackerInteger(BitWidth = 8)]
-        //public short SomeInt { get; set; }
+        [BitPackerInteger(BitWidth = 0, PadContainerAfter = true)]
+        public short SomeInt { get; set; }
 
-        //[BitPackerInteger(BitWidth = 8)]
-        //public short SomeOtherInt { get; set; }
+        [BitPackerInteger(BitWidth = 8)]
+        public short SomeOtherInt { get; set; }
 
-        //[BitPackerInteger(BitWidth = 8)]
-        //public short SomeOtherOtherInt { get; set; }
+        [BitPackerInteger(BitWidth = 8)]
+        public short SomeOtherOtherInt { get; set; }
 
         //[BitPackerMember]
         //public short SomeOtherOtherOtherint { get; set; }

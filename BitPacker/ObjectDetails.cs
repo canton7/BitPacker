@@ -30,6 +30,7 @@ namespace BitPacker
         protected readonly Type customDeserializer;
         protected readonly Type equivalentType;
         protected readonly int? bitWidth;
+        protected readonly bool padContainerAfter;
         protected readonly bool isPrimitiveType;
         protected readonly IPrimitiveTypeInfo primitiveTypeInfo;
 
@@ -180,6 +181,11 @@ namespace BitPacker
             get { return this.bitWidth; }
         }
 
+        public bool PadContainerAfter
+        {
+            get { return this.padContainerAfter; }
+        }
+
         public bool IsPrimitiveType
         {
             get { return this.isPrimitiveType; }
@@ -301,6 +307,9 @@ namespace BitPacker
                     throw new Exception("Properties decorated with BitPackerInteger or BitPackerArrayLength must be integral");
 
                 this.bitWidth = integerAttribute.NullableBitWidth;
+                if (this.bitWidth.HasValue && this.bitWidth.Value <= 0)
+                    throw new Exception("Bit Width must be > 0");
+                this.padContainerAfter = integerAttribute.PadContainerAfter;
             }
 
             var arrayLengthAttribute = propertyAttribute as BitPackerArrayLengthAttribute;
