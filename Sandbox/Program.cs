@@ -16,6 +16,7 @@ namespace Sandbox
             var buffer = BitPackerTranslate.Serialize(new TestClass()
             {
                 TestBool = true,
+                AnotherTestBool = true,
                 //Enum = Test.Bar,
                 //StringLength = 10,
                 //StringMember = "testy",
@@ -84,8 +85,11 @@ namespace Sandbox
         //[BitPackerInteger(BitWidth = 8)]
         //public short SomeOtherOtherInt { get; set; }
 
-        [BitPackerBoolean(Type = typeof(byte))]
+        [BitPackerBoolean(Type = typeof(byte), BitWidth=1)]
         public bool TestBool { get; set; }
+
+        [BitPackerBoolean(Type = typeof(byte), BitWidth = 1)]
+        public bool AnotherTestBool { get; set; }
 
         //[BitPackerArrayLength(LengthKey = "key")]
         //public int Length

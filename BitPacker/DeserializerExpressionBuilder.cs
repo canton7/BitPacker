@@ -69,6 +69,9 @@ namespace BitPacker
             if (objectDetails.IsString)
                 return this.DeserializeString(context);
 
+            if (objectDetails.Type == typeof(bool))
+                return this.DeserializeBoolean(objectDetails);
+
             if (objectDetails.IsEnumerable)
                 return this.DeserializeEnumerable(context);
 
@@ -143,10 +146,17 @@ namespace BitPacker
             return new TypeDetails(true, info.Size, value);
         }
 
-        public TypeDetails DeserializeEnum(ObjectDetails objectDetails)
+        private TypeDetails DeserializeEnum(ObjectDetails objectDetails)
         {
             var typeDetails = this.DeserializePrimitive(objectDetails.EnumEquivalentObjectDetails);
             var value = Expression.Convert(typeDetails.OperationExpression, objectDetails.Type);
+            return new TypeDetails(typeDetails.HasFixedSize, typeDetails.MinSize, value);
+        }
+
+        private TypeDetails DeserializeBoolean(ObjectDetails objectDetails)
+        {
+            var typeDetails = this.DeserializePrimitive(objectDetails.BooleanEquivalentObjectDetails);
+            var value = Expression.NotEqual(typeDetails.OperationExpression, Expression.Convert(Expression.Constant(0), typeDetails.OperationExpression.Type));
             return new TypeDetails(typeDetails.HasFixedSize, typeDetails.MinSize, value);
         }
 
