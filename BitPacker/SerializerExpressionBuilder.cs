@@ -20,16 +20,18 @@ namespace BitPacker
 
         private readonly Expression writer;
         private readonly Type objectType;
+        private readonly Endianness? defaultEndianness;
 
-        public SerializerExpressionBuilder(Expression writer, Type objectType)
+        public SerializerExpressionBuilder(Expression writer, Type objectType, Endianness? defaultEndianness = null)
         {
             this.writer = writer;
             this.objectType = objectType;
+            this.defaultEndianness = defaultEndianness;
         }
 
-        public TypeDetails Serialize(Expression subject)
+        public TypeDetails BuildExpression(Expression subject)
         {
-            var objectDetails = new ObjectDetails(this.objectType, new BitPackerMemberAttribute());
+            var objectDetails = new ObjectDetails(this.objectType, new BitPackerMemberAttribute(0) { NullableEndianness = this.defaultEndianness });
             objectDetails.Discover();
 
             var blockMembers = new List<Expression>();

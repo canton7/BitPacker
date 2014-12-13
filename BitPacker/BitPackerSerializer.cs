@@ -20,6 +20,14 @@ namespace BitPacker
         public int MinSize { get; private set; }
 
         public BitPackerSerializer(Type subjectType)
+            : this(subjectType, null)
+        { }
+
+        public BitPackerSerializer(Type subjectType, Endianness defaultEndianness)
+            : this(subjectType, (Endianness?)defaultEndianness)
+        { }
+
+        private BitPackerSerializer(Type subjectType, Endianness? defaultEndianness)
         {
             this.subjectType = subjectType;
 
@@ -29,8 +37,8 @@ namespace BitPacker
             var subjectVar = Expression.Variable(subjectType, "typedSubject");
             var assignment = Expression.Assign(subjectVar, Expression.Convert(subject, subjectType));
 
-            var builder = new SerializerExpressionBuilder(writer, subjectType);
-            var typeDetails = builder.Serialize(subjectVar);
+            var builder = new SerializerExpressionBuilder(writer, subjectType, defaultEndianness);
+            var typeDetails = builder.BuildExpression(subjectVar);
 
             this.HasFixedSize = typeDetails.HasFixedSize;
             this.MinSize = typeDetails.MinSize;
@@ -71,13 +79,21 @@ namespace BitPacker
         private Action<BitfieldBinaryWriter, T> serializer;
 
         public BitPackerSerializer()
+            : this(null)
+        { }
+
+        public BitPackerSerializer(Endianness defaultEndianness)
+            : this((Endianness?)defaultEndianness)
+        { }
+
+        private BitPackerSerializer(Endianness? defaultEndianness)
 	    {
             var subjectType = typeof(T);
             var writer = Expression.Parameter(typeof(BitfieldBinaryWriter), "writer");
             var subject = Expression.Parameter(subjectType, "subject");
 
-            var builder = new SerializerExpressionBuilder(writer, subjectType);
-            var typeDetails = builder.Serialize(subject);
+            var builder = new SerializerExpressionBuilder(writer, subjectType, defaultEndianness);
+            var typeDetails = builder.BuildExpression(subject);
 
             this.HasFixedSize = typeDetails.HasFixedSize;
             this.MinSize = typeDetails.MinSize;

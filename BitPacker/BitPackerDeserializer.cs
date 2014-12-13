@@ -17,13 +17,21 @@ namespace BitPacker
         public int MinSize { get; private set; }
 
         public BitPackerDeserializer(Type subjectType)
+            : this(subjectType, null)
+        { }
+
+        public BitPackerDeserializer(Type subjectType, Endianness defaultEndianness)
+            : this(subjectType, (Endianness?)defaultEndianness)
+        { }
+
+        private BitPackerDeserializer(Type subjectType, Endianness? defaultEndianness)
         {
             this.subjectType = subjectType;
 
             var reader = Expression.Parameter(typeof(BitfieldBinaryReader), "reader");
 
-            var builder = new DeserializerExpressionBuilder(reader, subjectType);
-            var typeDetails = builder.Deserialize();
+            var builder = new DeserializerExpressionBuilder(reader, subjectType, defaultEndianness);
+            var typeDetails = builder.BuildExpression();
 
             this.HasFixedSize = typeDetails.HasFixedSize;
             this.MinSize = typeDetails.MinSize;
@@ -56,13 +64,21 @@ namespace BitPacker
         public int MinSize { get; private set; }
 
         public BitPackerDeserializer()
+            : this(null)
+        { }
+
+        public BitPackerDeserializer(Endianness defaultEndianness)
+            : this((Endianness?)defaultEndianness)
+        { }
+
+        private BitPackerDeserializer(Endianness? defaultEndianness)
         {
             var subjectType = typeof(T);
 
             var reader = Expression.Parameter(typeof(BitfieldBinaryReader), "reader");
 
-            var builder = new DeserializerExpressionBuilder(reader, subjectType);
-            var typeDetails = builder.Deserialize();
+            var builder = new DeserializerExpressionBuilder(reader, subjectType, defaultEndianness);
+            var typeDetails = builder.BuildExpression();
 
             this.HasFixedSize = typeDetails.HasFixedSize;
             this.MinSize = typeDetails.MinSize;

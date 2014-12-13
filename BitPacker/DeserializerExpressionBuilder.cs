@@ -24,18 +24,20 @@ namespace BitPacker
 
         private readonly ParameterExpression reader;
         private readonly Type objectType;
+        private readonly Endianness? defaultEndianness;
 
-        public DeserializerExpressionBuilder(ParameterExpression reader, Type objectType)
+        public DeserializerExpressionBuilder(ParameterExpression reader, Type objectType, Endianness? defaultEndianness = null)
         {
             this.reader = reader;
             this.objectType = objectType;
+            this.defaultEndianness = defaultEndianness;
         }
 
-        public TypeDetails Deserialize()
+        public TypeDetails BuildExpression()
         {
             var subject = Expression.Parameter(this.objectType, "rootSubject");
 
-            var objectDetails = new ObjectDetails(this.objectType, new BitPackerMemberAttribute(0));
+            var objectDetails = new ObjectDetails(this.objectType, new BitPackerMemberAttribute(0) { NullableEndianness = this.defaultEndianness });
             objectDetails.Discover();
 
             // First, we need to make sure it's fully constructed
