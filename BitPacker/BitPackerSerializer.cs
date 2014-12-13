@@ -48,7 +48,7 @@ namespace BitPacker
         public void Serialize(Stream stream, object subject)
         {
             this.CheckType(subject);
-            using (var writer = new BitfieldBinaryWriter(stream))
+            using (var writer = new BitfieldBinaryWriter(new CountingStream(stream)))
             {
                 this.serializer(writer, subject);
             }
@@ -85,7 +85,7 @@ namespace BitPacker
 
         public void Serialize(Stream stream, T subject)
         {
-            using (var writer = new BitfieldBinaryWriter(stream))
+            using (var writer = new BitfieldBinaryWriter(new CountingStream(stream)))
             {
                 this.serializer(writer, subject);
             }

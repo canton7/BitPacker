@@ -33,7 +33,7 @@ namespace BitPacker
 
         public object Deserialize(Stream stream)
         {
-            using (var reader = new BitfieldBinaryReader(stream))
+            using (var reader = new BitfieldBinaryReader(new CountingStream(stream)))
             {
                 return this.deserializer(reader);
             }
@@ -70,7 +70,7 @@ namespace BitPacker
 
         public T Deserialize(Stream stream)
         {
-            using (var reader = new BitfieldBinaryReader(stream))
+            using (var reader = new BitfieldBinaryReader(new CountingStream(stream)))
             {
                 return this.deserializer(reader);
             }

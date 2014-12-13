@@ -395,7 +395,7 @@ namespace BitPacker
                 var customContext = context.FindParentContextOfType(deserializer.ContextType) ?? Expression.Constant(null);
                 var wrappedInvocation = Expression.Call(Expression.Constant(deserializer), deserializeMethod, this.reader, customContext);
 
-                var positionAccess = Expression.Property(Expression.Property(this.reader, "BaseStream"), "Position");
+                var positionAccess = Expression.Property(this.reader, "BytesRead");
 
                 var startingPositionVar = Expression.Variable(typeof(long), "beforePosition");
                 var startingPositionAssignment = Expression.Assign(startingPositionVar, positionAccess);

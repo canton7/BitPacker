@@ -9,13 +9,20 @@ namespace BitPacker
 {
     internal class BitfieldBinaryWriter : BinaryWriter
     {
+        private readonly CountingStream stream;
+
         private ulong container;
         private int containerSize; // In bytes
         private int containerBitsInUse;
         private bool swapContainerEndianness;
 
-        public BitfieldBinaryWriter(Stream output) : base(output, Encoding.UTF8, true)
-        { }
+        public int BytesWritten { get { return this.stream.BytesWritten; } }
+
+        public BitfieldBinaryWriter(CountingStream output)
+            : base(output, Encoding.UTF8, true)
+        {
+            this.stream = output;
+        }
 
         public void FlushContainer()
         {

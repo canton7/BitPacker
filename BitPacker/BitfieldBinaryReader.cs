@@ -9,13 +9,20 @@ namespace BitPacker
 {
     internal class BitfieldBinaryReader : BinaryReader
     {
+        private readonly CountingStream stream;
+
         private ulong container;
         private int containerSize; // Bytes
         private int containerBitsInUse;
         private bool swapContainerEndianness;
 
-        public BitfieldBinaryReader(Stream input) : base(input, Encoding.UTF8, true)
-        { }
+        public int BytesRead { get { return this.stream.BytesRead; } }
+
+        public BitfieldBinaryReader(CountingStream input)
+            : base(input, Encoding.UTF8, true)
+        {
+            this.stream = input;
+        }
 
 
         public void FlushContainer()

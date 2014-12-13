@@ -11,8 +11,8 @@ namespace BitPacker
     {
         private readonly Stream baseStream;
 
-        public int ReadBytes { get; private set; }
-        public int WrittenBytes { get; private set; }
+        public int BytesRead { get; private set; }
+        public int BytesWritten { get; private set; }
 
         public CountingStream(Stream baseStream)
         {
@@ -52,7 +52,7 @@ namespace BitPacker
 
         public override int Read(byte[] buffer, int offset, int count)
         {
-            this.ReadBytes += count;
+            this.BytesRead += count;
             return this.baseStream.Read(buffer, offset, count);
         }
 
@@ -68,7 +68,7 @@ namespace BitPacker
 
         public override void Write(byte[] buffer, int offset, int count)
         {
-            this.WrittenBytes += count;
+            this.BytesWritten += count;
             this.baseStream.Write(buffer, offset, count);
         }
 

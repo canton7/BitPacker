@@ -161,7 +161,7 @@ namespace BitPacker
                 var customContext = context.FindParentContextOfType(serializer.ContextType) ?? Expression.Constant(null);
                 var wrappedInvocation = ExpressionHelpers.TryTranslate(Expression.Call(Expression.Constant(serializer), serializeMethod, this.writer, context.Subject, customContext), context.GetMemberPath());
 
-                var positionAccess = Expression.Property(Expression.Property(this.writer, "BaseStream"), "Position");
+                var positionAccess = Expression.Property(this.writer, "BytesWritten");
                 var beforePositionVar = Expression.Variable(typeof(long), "beforePosition");
                 var beforePositionAssign = Expression.Assign(beforePositionVar, positionAccess);
 
