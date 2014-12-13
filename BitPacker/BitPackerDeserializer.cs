@@ -31,12 +31,14 @@ namespace BitPacker
             this.deserializer = Expression.Lambda<Func<BitfieldBinaryReader, object>>(typeDetails.OperationExpression, reader).Compile();
         }
 
-        public object Deserialize(Stream stream)
+        public int Deserialize(Stream stream, out object subject)
         {
-            using (var reader = new BitfieldBinaryReader(new CountingStream(stream)))
+            var countingStream = new CountingStream(stream);
+            using (var reader = new BitfieldBinaryReader(countingStream))
             {
-                return this.deserializer(reader);
+                subject = this.deserializer(reader);
             }
+            return countingStream.BytesRead;
         }
     }
 
@@ -68,12 +70,14 @@ namespace BitPacker
             this.deserializer = Expression.Lambda<Func<BitfieldBinaryReader, T>>(typeDetails.OperationExpression, reader).Compile();
         }
 
-        public T Deserialize(Stream stream)
+        public int Deserialize(Stream stream, out T subject)
         {
-            using (var reader = new BitfieldBinaryReader(new CountingStream(stream)))
+            var countingStream = new CountingStream(stream);
+            using (var reader = new BitfieldBinaryReader(countingStream))
             {
-                return this.deserializer(reader);
+                subject = this.deserializer(reader);
             }
+            return countingStream.BytesRead;
         }
     }
 }

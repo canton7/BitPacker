@@ -45,13 +45,15 @@ namespace BitPacker
                 throw new Exception(String.Format("Serializer for type {0} call with subject of type {1}", this.subjectType, subject.GetType()));
         }
 
-        public void Serialize(Stream stream, object subject)
+        public int Serialize(Stream stream, object subject)
         {
             this.CheckType(subject);
-            using (var writer = new BitfieldBinaryWriter(new CountingStream(stream)))
+            var countingStream = new CountingStream(stream);
+            using (var writer = new BitfieldBinaryWriter(countingStream))
             {
                 this.serializer(writer, subject);
             }
+            return countingStream.BytesWritten;
         }
     }
 
@@ -83,12 +85,14 @@ namespace BitPacker
             this.serializer = Expression.Lambda<Action<BitfieldBinaryWriter, T>>(typeDetails.OperationExpression, writer, subject).Compile();
 	    }
 
-        public void Serialize(Stream stream, T subject)
+        public int Serialize(Stream stream, T subject)
         {
-            using (var writer = new BitfieldBinaryWriter(new CountingStream(stream)))
+            var countingStream = new CountingStream(stream);
+            using (var writer = new BitfieldBinaryWriter(countingStream))
             {
                 this.serializer(writer, subject);
             }
+            return countingStream.BytesWritten;
         }
     }
 }

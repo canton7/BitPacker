@@ -12,7 +12,7 @@ namespace BitPacker
         bool HasFixedSize { get; }
         int MinSize { get; }
 
-        void Serialize(Stream stream, T subject);
+        int Serialize(Stream stream, T subject);
     }
 
     public interface ISerializer
@@ -20,7 +20,7 @@ namespace BitPacker
         bool HasFixedSize { get; }
         int MinSize { get; }
 
-        void Serialize(Stream stream, object subject);
+        int Serialize(Stream stream, object subject);
     }
 
     public static class SerializerExtensions
@@ -34,12 +34,34 @@ namespace BitPacker
             }
         }
 
+        public static int Serialize<T>(this ISerializer<T> serializer, T subject, byte[] buffer, int index, int maxCount)
+        {
+            if (serializer.MinSize > maxCount)
+                throw new ArgumentException(String.Format("Must be less than the Serializer's MinSize ({0})", serializer.MinSize), "maxCount");
+
+            using (var ms = new MemoryStream(buffer, index, maxCount))
+            {
+                return serializer.Serialize(ms, subject);
+            }
+        }
+
         public static byte[] Serialize(this ISerializer serializer, object subject)
         {
             using (var ms = new MemoryStream())
             {
                 serializer.Serialize(ms, subject);
                 return ms.ToArray();
+            }
+        }
+
+        public static int Serialize(this ISerializer serializer, object subject, byte[] buffer, int index, int maxCount)
+        {
+            if (serializer.MinSize > maxCount)
+                throw new ArgumentException(String.Format("Must be less than the Serializer's MinSize ({0})", serializer.MinSize), "maxCount");
+
+            using (var ms = new MemoryStream(buffer, index, maxCount))
+            {
+                return serializer.Serialize(ms, subject);
             }
         }
     }
