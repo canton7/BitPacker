@@ -7,93 +7,83 @@ using System.Threading.Tasks;
 
 namespace BitPacker
 {
-    internal interface IImmutableStack<T> : IEnumerable<T>
+    internal abstract class ImmutableStack<T> : IEnumerable<T>, IEnumerable
     {
-        IImmutableStack<T> Push(T value);
-        IImmutableStack<T> Pop();
-        T Peek();
-        bool IsEmpty { get; }
-    }
+        public abstract ImmutableStack<T> Push(T value);
+        public abstract ImmutableStack<T> Pop();
+        public abstract T Peek();
+        public abstract bool IsEmpty { get; }
 
-    internal class ImmutableStack<T> : IImmutableStack<T>
-    {
-        private sealed class EmptyStack : IImmutableStack<T>
+        private sealed class EmptyStack : ImmutableStack<T>
         {
-            public bool IsEmpty
+            public override bool IsEmpty
             {
                 get { return true; }
             }
 
-            public T Peek()
+            public override T Peek()
             {
                 throw new Exception("Empty stack");
             }
 
-            public IImmutableStack<T> Push(T value)
+            public override ImmutableStack<T> Push(T value)
             {
-                return new ImmutableStack<T>(value, this);
+                return new ImmutableStack<T>.NonEmptyStack(value, this);
             }
 
-            public IImmutableStack<T> Pop()
+            public override ImmutableStack<T> Pop()
             {
                 throw new Exception("Empty stack");
             }
+        }
 
-            public IEnumerator<T> GetEnumerator()
+        private sealed class NonEmptyStack : ImmutableStack<T>
+        {
+            private readonly T head;
+            private readonly ImmutableStack<T> tail;
+
+            public override bool IsEmpty
             {
-                yield break;
+                get { return false; }
             }
 
-            IEnumerator IEnumerable.GetEnumerator()
+            public NonEmptyStack(T head, ImmutableStack<T> tail)
             {
-                return this.GetEnumerator();
+                this.head = head;
+                this.tail = tail;
+            }
+
+            public override T Peek()
+            {
+                return head;
+            }
+
+            public override ImmutableStack<T> Pop()
+            {
+                return tail;
+            }
+
+            public override ImmutableStack<T> Push(T value)
+            {
+                return new ImmutableStack<T>.NonEmptyStack(value, this);
             }
         }
 
         private static readonly EmptyStack empty = new EmptyStack();
-        private readonly T head;
-        private readonly IImmutableStack<T> tail;
 
-        public static IImmutableStack<T> Empty
+        public static ImmutableStack<T> Empty
         {
             get { return empty; }
         }
 
-        private ImmutableStack(T head, IImmutableStack<T> tail)
+        public static ImmutableStack<T> Init(T initialValue)
         {
-            this.head = head;
-            this.tail = tail;
-        }
-
-        public ImmutableStack(T head)
-        {
-            this.head = head;
-            this.tail = ImmutableStack<T>.Empty;
-        }
-
-        public bool IsEmpty
-        {
-            get { return false; }
-        }
-
-        public T Peek()
-        {
-            return head;
-        }
-
-        public IImmutableStack<T> Pop()
-        {
-            return tail;
-        }
-
-        public IImmutableStack<T> Push(T value)
-        {
-            return new ImmutableStack<T>(value, this);
+            return Empty.Push(initialValue);
         }
 
         public IEnumerator<T> GetEnumerator()
         {
-            for (IImmutableStack<T> stack = this; !stack.IsEmpty ; stack = stack.Pop())
+            for (ImmutableStack<T> stack = this; !stack.IsEmpty ; stack = stack.Pop())
                 yield return stack.Peek();
         }
 

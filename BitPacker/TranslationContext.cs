@@ -23,7 +23,7 @@ namespace BitPacker
 
     internal class TranslationContext
     {
-        private readonly IImmutableStack<TranslationStepContext> stack;
+        private readonly ImmutableStack<TranslationStepContext> stack;
 
         public ObjectDetails ObjectDetails { get; private set; }
 
@@ -37,10 +37,10 @@ namespace BitPacker
         { }
 
         public TranslationContext(ObjectDetails objectDetails, Expression subject)
-            : this(objectDetails, new ImmutableStack<TranslationStepContext>(new TranslationStepContext(objectDetails, subject, "root")))
+            : this(objectDetails, ImmutableStack<TranslationStepContext>.Init(new TranslationStepContext(objectDetails, subject, "root")))
         { }
 
-        private TranslationContext(ObjectDetails objectDetails, IImmutableStack<TranslationStepContext> stack)
+        private TranslationContext(ObjectDetails objectDetails, ImmutableStack<TranslationStepContext> stack)
         {
             this.ObjectDetails = objectDetails;
             this.stack = stack;
