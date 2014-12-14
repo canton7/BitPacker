@@ -308,8 +308,10 @@ namespace BitPacker
                 var enumerableLength = ExpressionHelpers.LengthOfEnumerable(enumerable, objectDetails);
                 blockMembers.Add(ExpressionHelpers.TryTranslate(Expression.Assign(lengthVar, enumerableLength), context.GetMemberPath()));
 
-                var test = Expression.GreaterThan(lengthVar, Expression.Constant(objectDetails.EnumerableLength));
-                var throwExpr = Expression.Throw(ExpressionHelpers.MakeBitPackerTranslationException(context.GetMemberPath(), Expression.Constant(new Exception("You specified an explicit length for an array member, but the actual member is longer"))));
+                var enumerableLengthExpr = Expression.Constant(objectDetails.EnumerableLength);
+                var test = Expression.GreaterThan(lengthVar, enumerableLengthExpr);
+                var exceptionMessage = ExpressionHelpers.StringFormat("You specified an explicit length ({0}) for an array member, but the actual member is longer ({1})", enumerableLengthExpr, lengthVar);
+                var throwExpr = Expression.Throw(ExpressionHelpers.MakeBitPackerTranslationException(exceptionMessage, context.GetMemberPath()));
                 blockMembers.Add(Expression.IfThen(test, throwExpr));
             }
 

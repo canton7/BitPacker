@@ -115,6 +115,12 @@ namespace BitPacker
             );
         }
 
+        public static Expression MakeBitPackerTranslationException(Expression message, List<string> memberPath)
+        {
+            var ctor = typeof(BitPackerTranslationException).GetConstructor(new[] { typeof(string), typeof(List<string>) });
+            return Expression.New(ctor, message, Expression.Constant(memberPath));
+        }
+
         public static Expression MakeBitPackerTranslationException(List<string> memberPath, Expression innerException)
         {
             var ctor = typeof(BitPackerTranslationException).GetConstructor(new[] { typeof(List<string>), typeof(Exception) });

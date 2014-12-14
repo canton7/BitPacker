@@ -37,7 +37,7 @@ namespace BitPacker
         { }
 
         public TranslationContext(ObjectDetails objectDetails, Expression subject)
-            : this(objectDetails, ImmutableStack<TranslationStepContext>.Init(new TranslationStepContext(objectDetails, subject, "root")))
+            : this(objectDetails, ImmutableStack<TranslationStepContext>.Init(new TranslationStepContext(objectDetails, subject, null)))
         { }
 
         private TranslationContext(ObjectDetails objectDetails, ImmutableStack<TranslationStepContext> stack)
