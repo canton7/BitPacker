@@ -27,7 +27,8 @@ namespace BitPackerUnitTests
         [Fact]
         public void ThrowsIfArrayNotDecoratedWithPitPackerArrayAttribute()
         {
-            Assert.Throws<InvalidAttributeException>(() => new BitPackerSerializer<HasArrayWithoutArrayAttribute>());
+            var e = Assert.Throws<InvalidAttributeException>(() => new BitPackerSerializer<HasArrayWithoutArrayAttribute>());
+            Assert.Equal("HasArrayWithoutArrayAttribute.IntArray", e.Property);
         }
     }
 }

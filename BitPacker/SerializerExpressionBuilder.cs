@@ -31,7 +31,7 @@ namespace BitPacker
 
         public TypeDetails BuildExpression(Expression subject)
         {
-            var objectDetails = new ObjectDetails(this.objectType, new BitPackerMemberAttribute(0) { NullableEndianness = this.defaultEndianness }, ImmutableStack<string>.Empty);
+            var objectDetails = new ObjectDetails(this.objectType, new BitPackerMemberAttribute(0) { NullableEndianness = this.defaultEndianness });
             objectDetails.Discover();
 
             var blockMembers = new List<Expression>();

@@ -12,9 +12,8 @@ namespace BitPacker
     internal class ObjectDetails
     {
         protected static readonly Encoding[] nullTerminatedEncodings = new[] { Encoding.ASCII, Encoding.UTF8 };
-
         protected readonly Type type;
-        protected readonly ImmutableStack<string> memberPath;
+        protected readonly string debugName;
         protected Endianness? endianness;
         protected IReadOnlyList<PropertyObjectDetails> properties;
         protected IReadOnlyDictionary<string, PropertyObjectDetails> lengthFields;
@@ -202,10 +201,14 @@ namespace BitPacker
             }
         }
 
-        public ObjectDetails(Type type, BitPackerMemberAttribute propertyAttribute, ImmutableStack<string> memberPath, Endianness? endianness = null, bool isAttributeCascaded = false)
+        public ObjectDetails(Type type, BitPackerMemberAttribute propertyAttribute, Endianness? endianness = null, bool isAttributeCascaded = false)
+            : this(type, type.Description(), propertyAttribute, endianness, isAttributeCascaded)
+        { }
+
+        public ObjectDetails(Type type, string debugName, BitPackerMemberAttribute propertyAttribute, Endianness? endianness = null, bool isAttributeCascaded = false)
         {
             this.type = type;
-            this.memberPath = memberPath;
+            this.debugName = debugName;
             this.objectAttribute = this.type.GetCustomAttribute<BitPackerObjectAttribute>();
             this.endianness = endianness;
             this.propertyAttribute = propertyAttribute;
@@ -260,13 +263,13 @@ namespace BitPacker
                 if (!this.IsEnumerable && !this.IsString)
                     throw new Exception("BitPackerArray can only be applied to properties which are arrays or IEnumerable<T>");
 
-                this.elementObjectDetails = new EnumerableElementObjectDetails(this.ElementType, propertyAttribute, this.memberPath, this.Endianness);
+                this.elementObjectDetails = new EnumerableElementObjectDetails(this.ElementType, propertyAttribute, this.Endianness);
                 this.length = arrayAttribute.Length;
                 this.lengthKey = arrayAttribute.LengthKey;
             }
             else if (this.IsEnumerable)
             {
-                throw new InvalidAttributeException("Arrays or IEnumerable<T> properties must be decorated with BitPackerArray, not BitPackerMember");
+                throw new InvalidAttributeException("Arrays or IEnumerable<T> properties must be decorated with BitPackerArray, not BitPackerMember", this.debugName);
             }
 
             // Check has to happen before BitPackerIntegerAttribute
@@ -281,7 +284,7 @@ namespace BitPacker
             }
             if (this.IsBoolean)
             {
-                this.booleanEquivalentObjectDetails = new ObjectDetails(this.equivalentType ?? typeof(int), propertyAttribute, this.memberPath, this.Endianness, true);
+                this.booleanEquivalentObjectDetails = new ObjectDetails(this.equivalentType ?? typeof(int), propertyAttribute, this.Endianness, true);
             }
 
             // Check has to happen before BitPackerIntegerAttribute
@@ -297,7 +300,7 @@ namespace BitPacker
             if (this.IsEnum)
             {
                 var enumType = this.equivalentType ?? Enum.GetUnderlyingType(this.Type);
-                this.enumEquivalentObjectDetails = new ObjectDetails(enumType, propertyAttribute, this.memberPath, this.Endianness, true);
+                this.enumEquivalentObjectDetails = new ObjectDetails(enumType, propertyAttribute, this.Endianness, true);
                 this.CheckEnum(enumType);
             }
 
@@ -359,8 +362,7 @@ namespace BitPacker
                                   let propertyAttribute = property.GetCustomAttribute<BitPackerMemberAttribute>(false)
                                   where propertyAttribute != null
                                   orderby propertyAttribute.Order
-                                  let memberPath = this.memberPath.Push(property.Name)
-                                  select new PropertyObjectDetails(property, propertyAttribute, memberPath, this.Endianness)).ToList();
+                                  select new PropertyObjectDetails(this.type, property, propertyAttribute, this.Endianness)).ToList();
 
                 var properties = allProperties.Where(x => x.propertyAttribute.SerializeInternal).ToList();
 
@@ -397,8 +399,8 @@ namespace BitPacker
     {
         public PropertyInfo PropertyInfo { get; private set; }
 
-        public PropertyObjectDetails(PropertyInfo propertyInfo, BitPackerMemberAttribute propertyAttribute, ImmutableStack<string> memberPath, Endianness? endianness = null)
-            : base(propertyInfo.PropertyType, propertyAttribute, memberPath, endianness)
+        public PropertyObjectDetails(Type parentType, PropertyInfo propertyInfo, BitPackerMemberAttribute propertyAttribute, Endianness? endianness = null)
+            : base(propertyInfo.PropertyType, String.Format("{0}.{1}", parentType.Description(), propertyInfo.Name), propertyAttribute, endianness)
         {
             this.PropertyInfo = propertyInfo;
         }
@@ -411,8 +413,8 @@ namespace BitPacker
 
     internal class EnumerableElementObjectDetails : ObjectDetails
     {
-        public EnumerableElementObjectDetails(Type type, BitPackerMemberAttribute propertyAttribute, ImmutableStack<string> memberPath, Endianness? endianness = null)
-            : base(type, propertyAttribute, memberPath, endianness, true)
+        public EnumerableElementObjectDetails(Type type, BitPackerMemberAttribute propertyAttribute, Endianness? endianness = null)
+            : base(type, propertyAttribute, endianness, true)
         { }
 
         public Expression AssignExpression(ParameterExpression parent, Expression index, Expression value)
