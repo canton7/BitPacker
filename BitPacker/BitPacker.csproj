@@ -41,15 +41,13 @@
   <ItemGroup>
     <Compile Include="BitfieldBinaryReader.cs" />
     <Compile Include="BitfieldBinaryWriter.cs" />
-    <Compile Include="BitPackerException.cs" />
     <Compile Include="BitPackerTranslate.cs" />
     <Compile Include="BitPackerDeserializer.cs" />
-    <Compile Include="BitPackerTranslationException.cs" />
     <Compile Include="CountingStream.cs" />
+    <Compile Include="Exceptions.cs" />
     <Compile Include="ICustomDeserializer.cs" />
     <Compile Include="ICustomSerializer.cs" />
     <Compile Include="IDeserializer.cs" />
-    <Compile Include="InvalidAttributeException.cs" />
     <Compile Include="ISerializer.cs" />
     <Compile Include="TranslationContext.cs" />
     <Compile Include="DeserializerExpressionBuilder.cs" />

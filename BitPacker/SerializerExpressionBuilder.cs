@@ -67,10 +67,10 @@ namespace BitPacker
             var blockMembers = groups.Select(group =>
             {
                 if (group.Arrays.Length != 1)
-                    throw new Exception(String.Format("Found zero, or more than one arrays fields for Length Key {0}", group.Key));
+                    throw new InvalidArraySetupException(String.Format("Found zero, or more than one array fields for Length Key {0}", group.Key));
 
                 if (group.LengthFields.Length != 1)
-                    throw new Exception(String.Format("Found zero, or more than one integral fields for Length Key {0}", group.Key));
+                    throw new InvalidArraySetupException(String.Format("Found zero, or more than one integral fields for Length Key {0}", group.Key));
 
                 if (!group.LengthFields[0].ObjectDetails.Serialize)
                     return null;

@@ -24,4 +24,28 @@ namespace BitPacker
             this.MemberPath = memberPath.AsReadOnly();
         }
     }
+
+    public class InvalidAttributeException : BitPackerException
+    {
+        public string Property { get; private set; }
+        public InvalidAttributeException(string message, string property)
+            : base(String.Format("Property {0}: {1}", property, message))
+        {
+            this.Property = property;
+        }
+    }
+
+    public class InvalidArraySetupException : BitPackerException
+    {
+        public InvalidArraySetupException(string message)
+            : base(message)
+        { }
+    }
+
+    public class BitPackerException : Exception
+    {
+        public BitPackerException(string message)
+            : base(message)
+        { }
+    }
 }

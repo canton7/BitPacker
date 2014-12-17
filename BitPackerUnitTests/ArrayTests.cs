@@ -24,6 +24,33 @@ namespace BitPackerUnitTests
             public int[] IntArray { get; set; }
         }
 
+        [BitPackerObject]
+        private class HasVariableLengthArrayButNoLengthField
+        {
+            [BitPackerArray(LengthKey = "key")]
+            public int[] IntArray { get; set; }
+        }
+
+        [BitPackerObject]
+        private class HasLengthFieldButNoVariableLengthArray
+        {
+            [BitPackerArrayLength(LengthKey = "key")]
+            public int ArrayLength { get; set; }
+        }
+
+        [BitPackerObject]
+        private class HasTwoLengthFieldsForOneArray
+        {
+            [BitPackerArrayLength(LengthKey = "key")]
+            public int Length1 { get; set; }
+
+            [BitPackerArrayLength(LengthKey = "key")]
+            public int Length2 { get; set; }
+
+            [BitPackerArray(LengthKey = "key")]
+            public int[] IntArray { get; set; }
+        }
+
         [Fact]
         public void ThrowsIfArrayNotDecoratedWithPitPackerArrayAttribute()
         {
@@ -78,6 +105,39 @@ namespace BitPackerUnitTests
             var cls = deserializer.Deserialize(bytes);
             var expected = new[] { 0x0A, 0x0B, 0x0C, 0x0D, 0x00 };
             Assert.Equal(expected, cls.IntArray);
+        }
+
+        [Fact]
+        public void SerializationOfVariableLengthArrayWithNoLengthFieldFails()
+        {
+            Assert.Throws<InvalidArraySetupException>(() => new BitPackerSerializer<HasVariableLengthArrayButNoLengthField>());
+        }
+
+        [Fact]
+        public void DeserializationOfVariableLengthArrayWithNoLengthFieldFails()
+        {
+            var e = Assert.Throws<BitPackerTranslationException>(() => new BitPackerDeserializer<HasVariableLengthArrayButNoLengthField>());
+            Assert.Equal(new[] { "IntArray" }, e.MemberPath.ToArray());
+            Assert.IsType<InvalidArraySetupException>(e.InnerException);
+        }
+
+        [Fact]
+        public void SerializationOfObjectWithLengthFieldButNoCorrespondingArrayFails()
+        {
+            Assert.Throws<InvalidArraySetupException>(() => new BitPackerSerializer<HasLengthFieldButNoVariableLengthArray>());
+        }
+
+        [Fact]
+        public void DeserializationOfObjectWithLengthFieldButNoCorrespondingArraySucceeds()
+        {
+            Assert.DoesNotThrow(() => new BitPackerDeserializer<HasLengthFieldButNoVariableLengthArray>());
+        }
+
+        [Fact]
+        public void SerializationOfObjectWithTwoLengthFieldsForOneArraySucceeds()
+        {
+            var cls = new HasTwoLengthFieldsForOneArray() { IntArray = new[] { 1 } };
+            var serializer = new BitPackerSerializer<HasTwoLengthFieldsForOneArray>();
         }
     }
 }
