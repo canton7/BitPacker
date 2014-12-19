@@ -365,15 +365,19 @@ namespace BitPacker
                                   select new PropertyObjectDetails(this.type, property, propertyAttribute, this.Endianness)).ToList();
 
                 var properties = allProperties.Where(x => x.propertyAttribute.SerializeInternal).ToList();
-
-                this.lengthFields = allProperties.Where(x => x.propertyAttribute is BitPackerArrayLengthAttribute).ToDictionary(x => x.LengthKey, x => x);
-
                 foreach (var property in properties)
                 {
                     property.Discover();
                 }
 
                 this.properties = properties.AsReadOnly();
+
+                var lengthFieldGroups = allProperties.Where(x => x.propertyAttribute is BitPackerArrayLengthAttribute).GroupBy(x => x.LengthKey).ToArray();
+                var firstDuplicate = lengthFieldGroups.FirstOrDefault(x => x.Count() > 1);
+                if (firstDuplicate != null)
+                    throw new Exception(String.Format("Found more than one property with length key '{0}'", firstDuplicate.Key));
+
+                this.lengthFields = lengthFieldGroups.ToDictionary(x => x.Key, x => x.Single());
             }
 
             if (this.elementObjectDetails != null)
