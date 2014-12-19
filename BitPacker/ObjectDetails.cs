@@ -17,6 +17,7 @@ namespace BitPacker
         protected Endianness? endianness;
         protected IReadOnlyList<PropertyObjectDetails> properties;
         protected IReadOnlyDictionary<string, PropertyObjectDetails> lengthFields;
+        protected IReadOnlyDictionary<string, PropertyObjectDetails> variableLengthArrays;
         protected readonly BitPackerObjectAttribute objectAttribute;
         protected readonly BitPackerMemberAttribute propertyAttribute;
         protected readonly string lengthKey;
@@ -61,6 +62,16 @@ namespace BitPacker
                 if (!this.IsCustomType)
                     throw new InvalidOperationException("Not custom type");
                 return this.lengthFields;
+            }
+        }
+
+        public IReadOnlyDictionary<string, PropertyObjectDetails> VariableLengthArrays
+        {
+            get
+            {
+                if (!this.IsCustomType)
+                    throw new InvalidOperationException("Not custom type");
+                return this.variableLengthArrays;
             }
         }
 
@@ -189,6 +200,11 @@ namespace BitPacker
         public bool IsPrimitiveType
         {
             get { return this.isPrimitiveType; }
+        }
+
+        public bool IsLengthField
+        {
+            get { return this.propertyAttribute is BitPackerArrayLengthAttribute; }
         }
 
         public IPrimitiveTypeInfo PrimitiveTypeInfo
@@ -372,12 +388,23 @@ namespace BitPacker
 
                 this.properties = properties.AsReadOnly();
 
-                var lengthFieldGroups = allProperties.Where(x => x.propertyAttribute is BitPackerArrayLengthAttribute).GroupBy(x => x.LengthKey).ToArray();
-                var firstDuplicate = lengthFieldGroups.FirstOrDefault(x => x.Count() > 1);
-                if (firstDuplicate != null)
-                    throw new Exception(String.Format("Found more than one property with length key '{0}'", firstDuplicate.Key));
+                var lengthFieldGroups = allProperties.Where(x => x.IsLengthField).GroupBy(x => x.LengthKey).ToArray();
+                var firstLengthFieldDuplicate = lengthFieldGroups.FirstOrDefault(x => x.Count() > 1);
+                if (firstLengthFieldDuplicate != null)
+                    throw new Exception(String.Format("Found more than one property with length key '{0}'", firstLengthFieldDuplicate.Key));
 
                 this.lengthFields = lengthFieldGroups.ToDictionary(x => x.Key, x => x.Single());
+
+                var variableLengthArrayGroups = (from property in allProperties
+                                                 let attribute = property.propertyAttribute as BitPackerArrayAttribute
+                                                 where attribute != null && attribute.LengthKey != null
+                                                 group property by attribute.LengthKey).ToArray();
+
+                var firstVariableLengthArrayDuplicate = variableLengthArrayGroups.FirstOrDefault(x => x.Count() > 1);
+                if (firstVariableLengthArrayDuplicate != null)
+                    throw new Exception(String.Format("Found more than one variable-length array with length key '{0}'", firstLengthFieldDuplicate.Key));
+
+                this.variableLengthArrays = variableLengthArrayGroups.ToDictionary(x => x.Key, x => x.Single());
             }
 
             if (this.elementObjectDetails != null)

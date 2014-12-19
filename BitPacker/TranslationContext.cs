@@ -51,20 +51,33 @@ namespace BitPacker
             return new TranslationContext(objectDetails, this.stack.Push(new TranslationStepContext(this.ObjectDetails, subject, memberName)));
         }
 
-        public bool TryFindLengthKey(string key, out Expression memberAccess)
+        public PropertyObjectDetailsWithAccess FindLengthKey(string key)
         {
-            PropertyObjectDetails lengthField;
+            return this.FindLengthKey(key, "length field", x => x.LengthFields, true);
+        }
+
+        public PropertyObjectDetailsWithAccess FindVariableLengthArrayWithLengthKey(string key)
+        {
+            return this.FindLengthKey(key, "variable-length array", x => x.VariableLengthArrays, false);
+        }
+
+        private PropertyObjectDetailsWithAccess FindLengthKey(string key, string debugTerm, Func<ObjectDetails, IReadOnlyDictionary<string, PropertyObjectDetails>> propertySelector, bool performOrderChecks)
+        {
+            PropertyObjectDetailsWithAccess memberAccess = null;
+            // This is either the length field, or the variable-length array
+            PropertyObjectDetails fieldOfInterest;
+
             int orderMustBeLessThan = this.ObjectDetails.Order;
 
             foreach (var step in this.stack)
             {
-                if (step.ObjectDetails.IsCustomType && step.ObjectDetails.LengthFields.TryGetValue(key, out lengthField))
+                if (step.ObjectDetails.IsCustomType && propertySelector(step.ObjectDetails).TryGetValue(key, out fieldOfInterest))
                 {
-                    if (lengthField.Order >= orderMustBeLessThan)
-                        throw new Exception(String.Format("Found length key '{0}', but it appears after the array it's acting as the length for", key));
+                    if (fieldOfInterest.Order >= orderMustBeLessThan && performOrderChecks)
+                        throw new Exception(String.Format("Found {0} with length key '{1}', but it appears after the array it's acting as the length for", debugTerm, key));
 
-                    memberAccess = lengthField.AccessExpression(step.Subject);
-                    return true;
+                    memberAccess = new PropertyObjectDetailsWithAccess(fieldOfInterest, fieldOfInterest.AccessExpression(step.Subject));
+                    break;
                 }
 
                 var childCandidatesOfThisStep = (from property in step.ObjectDetails.Properties
@@ -73,34 +86,36 @@ namespace BitPacker
                                                 from recursiveProperty in new[] { new PropertyObjectDetailsWithAccess(property, propertyAccess) }
                                                     .Concat(property.RecursiveFlatPropertyAccess(propertyAccess))
                                                 where recursiveProperty.ObjectDetails.IsCustomType
-                                                from subLengthField in recursiveProperty.ObjectDetails.LengthFields
+                                                from subFieldOfInterest in propertySelector(recursiveProperty.ObjectDetails)
                                                 select new
                                                 {
                                                     Order = order,
-                                                    Details = new PropertyObjectDetailsWithAccess(subLengthField.Value, subLengthField.Value.AccessExpression(recursiveProperty.Value))
+                                                    Details = new PropertyObjectDetailsWithAccess(subFieldOfInterest.Value, subFieldOfInterest.Value.AccessExpression(recursiveProperty.Value))
                                                 }).ToArray();
 
                 if (childCandidatesOfThisStep.Length > 1)
-                    throw new Exception(String.Format("Found more than one property with length key '{0}'", key));
+                    throw new Exception(String.Format("Found more than {0} with length key '{1}'", debugTerm, key));
 
                 if (childCandidatesOfThisStep.Length == 1)
                 {
                     var candidate = childCandidatesOfThisStep[0];
 
                     // In order for us to accept this, the object which ultimately holds the length key must be before us
-                    if (candidate.Order >= orderMustBeLessThan)
+                    if (candidate.Order >= orderMustBeLessThan && performOrderChecks)
                         throw new Exception(String.Format("Found length key '{0}', but it appears after the array it's acting as the length for", key));
 
-                    memberAccess = candidate.Details.Value;
-                    return true;
+                    memberAccess = candidate.Details;
+                    break;
                 }
 
 
                 orderMustBeLessThan = step.ObjectDetails.Order;
             }
 
-            memberAccess = null;
-            return false;
+            if (memberAccess == null)
+                throw new InvalidArraySetupException(String.Format("Could not find {0} with Length Key {1}", debugTerm, key));
+
+            return memberAccess;
         }
 
 

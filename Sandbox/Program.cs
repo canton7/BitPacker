@@ -16,7 +16,8 @@ namespace Sandbox
             var buffer = BitPackerTranslate.Serialize(new TestClass()
             {
                 //IntField = 3,
-                SubClass = new TestSubClass(),
+                Array = new[] {  1, 2, 3 },
+                //SubClass = new TestSubClass(),
                 //Enum = Test.Bar,
                 //TestBool = true,
                 //AnotherTestBool = true,
@@ -64,8 +65,11 @@ namespace Sandbox
         //[BitPackerMember(CustomDeserializer = typeof(CustomDeserializer))]
         //public TestSubClass SubClass { get; set; }
 
-        //[BitPackerArrayLength(LengthKey = "test")]
-        //public int StringLength { get; set; }
+        [BitPackerArrayLength(LengthKey = "test")]
+        public int ArrayLength { get; set; }
+
+        [BitPackerArray(LengthKey = "test")]
+        public int[] Array { get; set; }
 
         //[BitPackerString(NullTerminated = true, Length = 5)]
         //public string StringMember { get; set; }
@@ -79,11 +83,11 @@ namespace Sandbox
         //[BitPackerMember]
         //public Test Enum { get; set; }
 
-        [BitPackerMember]
-        public int IntField { set { throw new Exception("BOOM"); } }
+        //[BitPackerMember]
+        //public int IntField { set { throw new Exception("BOOM"); } }
 
-        [BitPackerMember]
-        public TestSubClass SubClass { get; set; }
+        //[BitPackerMember]
+        //public TestSubClass SubClass { get; set; }
 
         //[BitPackerInteger(BitWidth = 0, PadContainerAfter = true)]
         //public short SomeInt { get; set; }

@@ -211,7 +211,16 @@ namespace BitPacker
             var value = context.Subject;
 
             var info = objectDetails.PrimitiveTypeInfo;
-            Expression writeExpression;
+
+            List<Expression> blockMembers = new List<Expression>();
+
+            if (objectDetails.IsLengthField)
+            {
+                var arrayAccess = context.FindVariableLengthArrayWithLengthKey(objectDetails.LengthKey);
+                var length = ExpressionHelpers.LengthOfEnumerable(arrayAccess.Value, arrayAccess.ObjectDetails);
+                var assign = Expression.Assign(value, length);
+                blockMembers.Add(assign);
+            }
 
             if (info.IsIntegral && objectDetails.BitWidth.HasValue)
             {
@@ -220,10 +229,13 @@ namespace BitPacker
                 var numBits = Expression.Constant(objectDetails.BitWidth.Value);
                 var swapEndianness = Expression.Constant(objectDetails.Endianness != EndianUtilities.HostEndianness);
                 var writeBitfield = Expression.Call(this.writer, writeBitfieldMethod, convertedValue, containerSize, numBits, swapEndianness);
+
+                Expression writeExpression;
                 if (objectDetails.PadContainerAfter)
                     writeExpression = Expression.Block(writeBitfield, Expression.Call(this.writer, flushContainerMethod));
                 else
                     writeExpression = writeBitfield;
+                blockMembers.Add(writeExpression);
             }
             // Even through EndiannessUtilities has now Swap(byte) overload, we get an AmbiguousMatchException
             // when we try and find such a method (maybe the byte is being coerced into an int or something?).
@@ -234,14 +246,15 @@ namespace BitPacker
                 var swapMethod = typeof(EndianUtilities).GetMethod("Swap", new[] { objectDetails.Type } );
                 if (swapMethod != null)
                     value = Expression.Call(swapMethod, value);
-                writeExpression = info.SerializeExpression(this.writer, value);
+                var writeExpression = info.SerializeExpression(this.writer, value);
+                blockMembers.Add(writeExpression);
             }
             else
             {
-                writeExpression = info.SerializeExpression(this.writer, value);
+                blockMembers.Add(info.SerializeExpression(this.writer, value));
             }
 
-            var wrappedWrite = ExpressionHelpers.TryTranslate(writeExpression, context.GetMemberPath());
+            var wrappedWrite = ExpressionHelpers.TryTranslate(Expression.Block(blockMembers), context.GetMemberPath());
 
             return new TypeDetails(true, info.Size, wrappedWrite);
         }

@@ -224,8 +224,7 @@ namespace BitPacker
 
             if (objectDetails.LengthKey != null)
             {
-                if (!context.TryFindLengthKey(objectDetails.LengthKey, out arrayLength))
-                    throw new InvalidArraySetupException(String.Format("Could not find integer field with Length Key {0}", objectDetails.LengthKey));
+                arrayLength = context.FindLengthKey(objectDetails.LengthKey).Value;
 
                 // If it has both fixed and variable-length attributes, then there's padding at the end of it
                 if (hasFixedLength)
