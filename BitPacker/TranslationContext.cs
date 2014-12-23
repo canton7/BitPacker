@@ -25,30 +25,28 @@ namespace BitPacker
     {
         private readonly ImmutableStack<TranslationStepContext> stack;
 
-        public ObjectDetails ObjectDetails { get; private set; }
+        public ObjectDetails ObjectDetails
+        {
+            get { return this.stack.Peek().ObjectDetails; }
+        }
 
         public Expression Subject
         {
             get { return this.stack.Peek().Subject; }
         }
 
-        public TranslationContext(ObjectDetails objectDetails)
-            : this(objectDetails, ImmutableStack<TranslationStepContext>.Empty)
-        { }
-
         public TranslationContext(ObjectDetails objectDetails, Expression subject)
-            : this(objectDetails, ImmutableStack<TranslationStepContext>.Init(new TranslationStepContext(objectDetails, subject, null)))
+            : this(ImmutableStack<TranslationStepContext>.Init(new TranslationStepContext(objectDetails, subject, null)))
         { }
 
-        private TranslationContext(ObjectDetails objectDetails, ImmutableStack<TranslationStepContext> stack)
+        private TranslationContext(ImmutableStack<TranslationStepContext> stack)
         {
-            this.ObjectDetails = objectDetails;
             this.stack = stack;
         }
 
         public TranslationContext Push(ObjectDetails objectDetails, Expression subject, string memberName)
         {
-            return new TranslationContext(objectDetails, this.stack.Push(new TranslationStepContext(this.ObjectDetails, subject, memberName)));
+            return new TranslationContext(this.stack.Push(new TranslationStepContext(objectDetails, subject, memberName)));
         }
 
         public PropertyObjectDetailsWithAccess FindLengthKey(string key)
@@ -61,7 +59,9 @@ namespace BitPacker
             return this.FindLengthKey(key, "variable-length array", x => x.VariableLengthArrays, false);
         }
 
-        private PropertyObjectDetailsWithAccess FindLengthKey(string key, string debugTerm, Func<ObjectDetails, IReadOnlyDictionary<string, PropertyObjectDetails>> propertySelector, bool performOrderChecks)
+        private PropertyObjectDetailsWithAccess FindLengthKey(string key, string debugTerm,
+            Func<ObjectDetails, IReadOnlyDictionary<string, PropertyObjectDetails>> propertySelector,
+            bool performOrderChecks)
         {
             PropertyObjectDetailsWithAccess memberAccess = null;
             // This is either the length field, or the variable-length array
@@ -76,15 +76,14 @@ namespace BitPacker
                     if (fieldOfInterest.Order >= orderMustBeLessThan && performOrderChecks)
                         throw new Exception(String.Format("Found {0} with length key '{1}', but it appears after the array it's acting as the length for", debugTerm, key));
 
-                    memberAccess = new PropertyObjectDetailsWithAccess(fieldOfInterest, fieldOfInterest.AccessExpression(step.Subject));
+                    memberAccess = new PropertyObjectDetailsWithAccess(fieldOfInterest, step.Subject);
                     break;
                 }
 
                 var childCandidatesOfThisStep = (from property in step.ObjectDetails.Properties
                                                 let order = property.Order
-                                                let propertyAccess = property.AccessExpression(step.Subject)
-                                                from recursiveProperty in new[] { new PropertyObjectDetailsWithAccess(property, propertyAccess) }
-                                                    .Concat(property.RecursiveFlatPropertyAccess(propertyAccess))
+                                                from recursiveProperty in new[] { new PropertyObjectDetailsWithAccess(property, step.Subject) }
+                                                    .Concat(property.RecursiveFlatPropertyAccess(step.Subject))
                                                 where recursiveProperty.ObjectDetails.IsCustomType
                                                 from subFieldOfInterest in propertySelector(recursiveProperty.ObjectDetails)
                                                 select new

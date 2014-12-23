@@ -43,8 +43,8 @@ namespace BitPacker
             // First, we need to make sure it's fully constructed
             var blockMembers = new List<Expression>();
 
-            var context = new TranslationContext(objectDetails);
-            var deserialized = this.DeserializeAndAssignValue(subject, context);
+            var context = new TranslationContext(objectDetails, subject);
+            var deserialized = this.DeserializeAndAssignValue(context);
             blockMembers.Add(deserialized.OperationExpression);
             // Set return value
             blockMembers.Add(subject);
@@ -68,12 +68,12 @@ namespace BitPacker
         //    return blockMembers.Any() ? Expression.Block(blockMembers) : null;
         //}
 
-        private TypeDetails DeserializeAndAssignValue(Expression subject, TranslationContext context)
+        private TypeDetails DeserializeAndAssignValue(TranslationContext context)
         {
             try
             {
                 var typeDetails = this.DeserializeValue(context);
-                var wrappedAssignment = ExpressionHelpers.TryTranslate(Expression.Assign(subject, typeDetails.OperationExpression), context.GetMemberPath());
+                var wrappedAssignment = ExpressionHelpers.TryTranslate(Expression.Assign(context.Subject, typeDetails.OperationExpression), context.GetMemberPath());
                 return new TypeDetails(typeDetails.HasFixedSize, typeDetails.MinSize, wrappedAssignment);
             }
             catch (Exception e)
@@ -128,7 +128,7 @@ namespace BitPacker
 
                 var typeDetails = objectDetails.Properties.Select(property =>
                 {
-                    var newContext = context.Push(property, subject, property.PropertyInfo.Name);
+                    var newContext = context.Push(property, property.AccessExpression(subject), property.PropertyInfo.Name);
 
                     if (!property.PropertyInfo.CanWrite)
                         throw new BitPackerTranslationException("The property must have a public setter", newContext.GetMemberPath());
@@ -137,7 +137,7 @@ namespace BitPacker
                     if (property.CustomDeserializer != null)
                         return this.CreateAndAssignFromDeserializer(property.CustomDeserializer, property.AccessExpression(subject), newContext);
                     else
-                        return this.DeserializeAndAssignValue(property.AccessExpression(subject), newContext);
+                        return this.DeserializeAndAssignValue(newContext);
                 }).ToArray();
 
                 blockMembers.AddRange(typeDetails.Select(x => x.OperationExpression));
