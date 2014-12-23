@@ -71,7 +71,10 @@ namespace BitPacker
 
             foreach (var step in this.stack)
             {
-                if (step.ObjectDetails.IsCustomType && propertySelector(step.ObjectDetails).TryGetValue(key, out fieldOfInterest))
+                if (!step.ObjectDetails.IsCustomType)
+                    continue;
+
+                if (propertySelector(step.ObjectDetails).TryGetValue(key, out fieldOfInterest))
                 {
                     if (fieldOfInterest.Order >= orderMustBeLessThan && performOrderChecks)
                         throw new Exception(String.Format("Found {0} with length key '{1}', but it appears after the array it's acting as the length for", debugTerm, key));

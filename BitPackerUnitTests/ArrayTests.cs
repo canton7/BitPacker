@@ -134,7 +134,7 @@ namespace BitPackerUnitTests
         }
 
         [Fact]
-        public void SerializationOfObjectWithTwoLengthFieldsForOneArraySucceeds()
+        public void SerializationOfObjectWithTwoLengthFieldsForOneArrayFails()
         {
             var cls = new HasTwoLengthFieldsForOneArray() { IntArray = new[] { 1 } };
             var serializer = new BitPackerSerializer<HasTwoLengthFieldsForOneArray>();
