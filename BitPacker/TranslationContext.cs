@@ -35,6 +35,11 @@ namespace BitPacker
             get { return this.stack.Peek().Subject; }
         }
 
+        public string MemberName
+        {
+            get { return this.stack.Peek().MemberName; }
+        }
+
         public TranslationContext(ObjectDetails objectDetails, Expression subject)
             : this(ImmutableStack<TranslationStepContext>.Init(new TranslationStepContext(objectDetails, subject, null)))
         { }
@@ -79,7 +84,7 @@ namespace BitPacker
                     if (fieldOfInterest.Order >= orderMustBeLessThan && performOrderChecks)
                         throw new Exception(String.Format("Found {0} with length key '{1}', but it appears after the array it's acting as the length for", debugTerm, key));
 
-                    memberAccess = new PropertyObjectDetailsWithAccess(fieldOfInterest, step.Subject);
+                    memberAccess = new PropertyObjectDetailsWithAccess(fieldOfInterest, fieldOfInterest.AccessExpression(step.Subject));
                     break;
                 }
 

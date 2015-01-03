@@ -391,7 +391,7 @@ namespace BitPacker
                 var lengthFieldGroups = allProperties.Where(x => x.IsLengthField).GroupBy(x => x.LengthKey).ToArray();
                 var firstLengthFieldDuplicate = lengthFieldGroups.FirstOrDefault(x => x.Count() > 1);
                 if (firstLengthFieldDuplicate != null)
-                    throw new Exception(String.Format("Found more than one property with length key '{0}'", firstLengthFieldDuplicate.Key));
+                    throw new InvalidArraySetupException(String.Format("Found more than one property with length key '{0}'", firstLengthFieldDuplicate.Key));
 
                 this.lengthFields = lengthFieldGroups.ToDictionary(x => x.Key, x => x.Single());
 
