@@ -34,63 +34,8 @@ namespace BitPacker
             var objectDetails = new ObjectDetails(this.objectType, new BitPackerMemberAttribute(0) { NullableEndianness = this.defaultEndianness });
             objectDetails.Discover();
 
-            var blockMembers = new List<Expression>();
-
-            blockMembers.Add(this.HandleVariableLengthArrays(subject, objectDetails));
-
             var context = new TranslationContext(objectDetails, subject);
-            var serialized = this.SerializeCustomType(context);
-            blockMembers.Add(serialized.OperationExpression);
-
-            return new TypeDetails(serialized.HasFixedSize, serialized.MinSize, Expression.Block(blockMembers.Where(x => x != null)));
-        }
-
-        private Expression HandleVariableLengthArrays(Expression subject, ObjectDetails objectDetails)
-        {
-            var arrays = objectDetails.RecursiveFlatPropertyAccess(subject).Where(x => x.ObjectDetails.IsEnumerable && x.ObjectDetails.LengthKey != null);
-            var lengthFields = objectDetails.LengthFields
-                .Select(x => new PropertyObjectDetailsWithAccess(x.Value, x.Value.AccessExpression(subject)))
-                .Concat(objectDetails.RecursiveFlatPropertyAccess(subject)
-                    .Where(x => x.ObjectDetails.IsCustomType)
-                    .SelectMany(x => x.ObjectDetails.LengthFields.Select(y => new PropertyObjectDetailsWithAccess(y.Value, y.Value.AccessExpression(x.Value)))));
-
-            var allKeys = arrays.Select(x => x.ObjectDetails.LengthKey).Concat(lengthFields.Select(x => x.ObjectDetails.LengthKey)).Distinct();
-
-            var groups = allKeys.Select(x => new
-            {
-                Key = x,
-                Arrays = arrays.Where(y => y.ObjectDetails.LengthKey == x).ToArray(),
-                LengthFields =  lengthFields.Where(y => y.ObjectDetails.LengthKey == x).ToArray(),
-            });
-
-            // For each, synthesize an assign to the integral field, assigning the length of the array field
-            var blockMembers = groups.Select(group =>
-            {
-                if (group.Arrays.Length != 1)
-                    throw new InvalidArraySetupException(String.Format("Found zero, or more than one array fields for Length Key {0}", group.Key));
-
-                if (group.LengthFields.Length != 1)
-                    throw new InvalidArraySetupException(String.Format("Found zero, or more than one integral fields for Length Key {0}", group.Key));
-
-                if (!group.LengthFields[0].ObjectDetails.Serialize)
-                    return null;
-
-                // If it's not writable, then that's fine
-                if (!group.LengthFields[0].ObjectDetails.PropertyInfo.CanWrite)
-                    return null;
-
-                return Expression.Assign(
-                    group.LengthFields[0].Value,
-                    ExpressionHelpers.LengthOfEnumerable(
-                        group.Arrays[0].Value,
-                        group.Arrays[0].ObjectDetails
-                    )
-                );
-            });
-
-            blockMembers = blockMembers.Where(x => x != null);
-
-            return blockMembers.Any() ? Expression.Block(blockMembers) : null;
+            return this.SerializeCustomType(context);
         }
 
         private TypeDetails SerializeValue(TranslationContext context)

@@ -108,9 +108,9 @@ namespace BitPackerUnitTests
         }
 
         [Fact]
-        public void SerializationOfVariableLengthArrayWithNoLengthFieldFails()
+        public void SerializationOfVariableLengthArrayWithNoLengthFieldSucceeds()
         {
-            Assert.Throws<InvalidArraySetupException>(() => new BitPackerSerializer<HasVariableLengthArrayButNoLengthField>());
+            Assert.DoesNotThrow(() => new BitPackerSerializer<HasVariableLengthArrayButNoLengthField>());
         }
 
         [Fact]
