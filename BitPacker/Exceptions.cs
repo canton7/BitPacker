@@ -48,4 +48,11 @@ namespace BitPacker
             : base(message)
         { }
     }
+
+    public class InvalidEquivalentTypeException : InvalidAttributeException
+    {
+        public InvalidEquivalentTypeException(string message, string property)
+            : base(message, property)
+        { }
+    }
 }

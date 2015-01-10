@@ -35,5 +35,10 @@ namespace BitPacker
         {
             return Types.ContainsKey(type);
         }
+
+        public static bool TryGetValue(Type type, out IPrimitiveTypeInfo primitiveTypeInfo)
+        {
+            return Types.TryGetValue(type, out primitiveTypeInfo);
+        }
     }
 }

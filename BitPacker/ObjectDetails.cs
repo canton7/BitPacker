@@ -293,14 +293,19 @@ namespace BitPacker
             if (booleanAttribute != null && !isAttributeCascaded)
             {
                 if (!this.IsBoolean)
-                    throw new Exception("Properties decorated with BitPackerBoolean must be booleans");
+                    throw new InvalidAttributeException("Properties decorated with BitPackerBoolean must be booleans", this.debugName);
 
-                this.EnsureTypeIsInteger(booleanAttribute.Type);
+                var equivalentType = booleanAttribute.Type;
+                if (equivalentType == typeof(bool))
+                    equivalentType = null;
+                if (equivalentType != null)
+                    this.EnsureTypeIsInteger(booleanAttribute.Type);
                 this.equivalentType = booleanAttribute.Type;
             }
             if (this.IsBoolean)
             {
-                this.booleanEquivalentObjectDetails = new ObjectDetails(this.equivalentType ?? typeof(int), propertyAttribute, this.Endianness, true);
+                this.equivalentType = this.equivalentType ?? typeof(int);
+                this.booleanEquivalentObjectDetails = new ObjectDetails(this.equivalentType, propertyAttribute, this.Endianness, true);
             }
 
             // Check has to happen before BitPackerIntegerAttribute
@@ -324,7 +329,8 @@ namespace BitPacker
             if (integerAttribute != null)
             {
                 var typeToCheck = this.equivalentType ?? this.Type;
-                if (!this.IsPrimitiveType || !this.PrimitiveTypeInfo.IsIntegral)
+                IPrimitiveTypeInfo primitiveTypeInfo;
+                if (!PrimitiveTypes.Types.TryGetValue(typeToCheck, out primitiveTypeInfo) || !primitiveTypeInfo.IsIntegral)
                     throw new Exception("Properties decorated with BitPackerInteger or BitPackerArrayLength must be integral");
 
                 this.bitWidth = integerAttribute.NullableBitWidth;
@@ -366,8 +372,9 @@ namespace BitPacker
 
         private void EnsureTypeIsInteger(Type type)
         {
-            if (!this.IsPrimitiveType || !this.primitiveTypeInfo.IsIntegral)
-                throw new Exception(String.Format("Type {0} must be an integer", type));
+            IPrimitiveTypeInfo primitiveTypeInfo;
+            if (!PrimitiveTypes.TryGetValue(type, out primitiveTypeInfo) || !primitiveTypeInfo.IsIntegral)
+                throw new InvalidEquivalentTypeException(String.Format("Type {0} must be an integer", type), this.debugName);
         }
 
         public void Discover()

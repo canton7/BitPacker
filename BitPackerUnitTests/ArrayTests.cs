@@ -138,5 +138,11 @@ namespace BitPackerUnitTests
         {
             Assert.Throws<InvalidArraySetupException>(() => new BitPackerSerializer<HasTwoLengthFieldsForOneArray>());
         }
+
+        [Fact]
+        public void DeserializationOfObjectWithTwoLengthFieldsForOneArrayFails()
+        {
+            Assert.Throws<InvalidArraySetupException>(() => new BitPackerDeserializer<HasTwoLengthFieldsForOneArray>());
+        }
     }
 }
