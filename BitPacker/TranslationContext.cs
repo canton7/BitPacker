@@ -7,17 +7,19 @@ using System.Threading.Tasks;
 
 namespace BitPacker
 {
-    internal class TranslationStepContext
+    internal struct TranslationStepContext
     {
-        public ObjectDetails ObjectDetails { get; private set; }
-        public Expression Subject { get; private set; }
-        public string MemberName { get; private set; }
+        public readonly ObjectDetails ObjectDetails;
+        public readonly Expression Subject;
+        public readonly string MemberName;
+        public readonly bool IsAssigned;
 
-        public TranslationStepContext(ObjectDetails objectDetails, Expression subject, string memberName)
+        public TranslationStepContext(ObjectDetails objectDetails, Expression subject, string memberName, bool isAssigned)
         {
             this.ObjectDetails = objectDetails;
             this.Subject = subject;
             this.MemberName = memberName;
+            this.IsAssigned = isAssigned;
         }
     }
 
@@ -41,7 +43,7 @@ namespace BitPacker
         }
 
         public TranslationContext(ObjectDetails objectDetails, Expression subject)
-            : this(ImmutableStack<TranslationStepContext>.Init(new TranslationStepContext(objectDetails, subject, null)))
+            : this(ImmutableStack<TranslationStepContext>.Init(new TranslationStepContext(objectDetails, subject, null, false)))
         { }
 
         private TranslationContext(ImmutableStack<TranslationStepContext> stack)
@@ -49,9 +51,14 @@ namespace BitPacker
             this.stack = stack;
         }
 
-        public TranslationContext Push(ObjectDetails objectDetails, Expression subject, string memberName)
+        public TranslationContext PushAssigned(ObjectDetails objectDetails, Expression subject, string memberName)
         {
-            return new TranslationContext(this.stack.Push(new TranslationStepContext(objectDetails, subject, memberName)));
+            return new TranslationContext(this.stack.Push(new TranslationStepContext(objectDetails, subject, memberName, true)));
+        }
+
+        public TranslationContext PushUnassigned(ObjectDetails objectDetails, Expression subject)
+        {
+            return new TranslationContext(this.stack.Push(new TranslationStepContext(objectDetails, subject, null, false)));
         }
 
         public PropertyObjectDetailsWithAccess FindLengthKey(string key)
@@ -76,7 +83,7 @@ namespace BitPacker
 
             foreach (var step in this.stack)
             {
-                if (!step.ObjectDetails.IsCustomType)
+                if (!step.ObjectDetails.IsCustomType || !step.IsAssigned)
                     continue;
 
                 if (propertySelector(step.ObjectDetails).TryGetValue(key, out fieldOfInterest))
@@ -133,8 +140,12 @@ namespace BitPacker
 
         public Expression FindParentContextOfType(Type type)
         {
-            var step = this.stack.FirstOrDefault(x => x.Subject.Type == type);
-            return step == null ? null : step.Subject;
+            foreach (var step in this.stack)
+            {
+                if (step.Subject.Type == type)
+                    return step.Subject;
+            }
+            return null;
         }
     }
 }

@@ -126,11 +126,11 @@ namespace BitPacker
                 var wrappedCreateAndAssign = ExpressionHelpers.TryTranslate(createAndAssign, context.GetMemberPath());
                 blockMembers.Add(wrappedCreateAndAssign);
 
-                var localContext = context.Push(objectDetails, subject, context.MemberName);
+                var localContext = context.PushUnassigned(objectDetails, subject);
 
                 var typeDetails = objectDetails.Properties.Select(property =>
                 {
-                    var newContext = localContext.Push(property, property.AccessExpression(subject), property.PropertyInfo.Name);
+                    var newContext = localContext.PushAssigned(property, property.AccessExpression(subject), property.PropertyInfo.Name);
 
                     if (!property.PropertyInfo.CanWrite)
                         throw new BitPackerTranslationException("The property must have a public setter", newContext.GetMemberPath());
@@ -327,7 +327,7 @@ namespace BitPacker
                 this.CreateListOrArray(objectDetails, arrayLength)
             );
 
-            var typeDetails = this.DeserializeValue(context.Push(objectDetails.ElementObjectDetails, subject, "[]"));
+            var typeDetails = this.DeserializeValue(context.PushAssigned(objectDetails.ElementObjectDetails, subject, "[]"));
 
             var loopVar = Expression.Variable(typeof(int), "loopVar");
             var forLoop = ExpressionHelpers.For(
