@@ -11,7 +11,7 @@ namespace BitPacker
 {
     internal class ObjectDetails
     {
-        protected static readonly Encoding[] nullTerminatedEncodings = new[] { Encoding.ASCII, Encoding.UTF8 };
+        public static readonly Encoding[] NullTerminatedEncodings = new[] { Encoding.ASCII, Encoding.UTF8 };
         protected readonly Type type;
         protected readonly string debugName;
         protected Endianness? endianness;
@@ -204,7 +204,7 @@ namespace BitPacker
 
         public bool IsLengthField
         {
-            get { return this.propertyAttribute is BitPackerArrayLengthAttribute; }
+            get { return this.propertyAttribute is BitPackerLengthKeyAttribute; }
         }
 
         public IPrimitiveTypeInfo PrimitiveTypeInfo
@@ -246,44 +246,37 @@ namespace BitPacker
             if (this.customDeserializer == null && this.objectAttribute != null)
                 this.customDeserializer = this.objectAttribute.Deserializer;
 
-            // Strings are a special sort of array, reeeeally...
-            // Strings have a bit extra - so handle that, then let the array handling kick in
-
             var stringAttribute = propertyAttribute as BitPackerStringAttribute;
             if (stringAttribute != null && !isAttributeCascaded)
             {
                 if (!this.IsString)
-                    throw new Exception("BitPackerString can only be applied to properties which are strings");
+                    throw new InvalidAttributeException("BitPackerString can only be applied to properties which are strings", this.debugName);
 
+                this.elementObjectDetails = new EnumerableElementObjectDetails(this.ElementType, propertyAttribute);
+                this.length = stringAttribute.Length;
+                this.lengthKey = stringAttribute.LengthKey;
                 this.encoding = Encoding.GetEncoding(stringAttribute.Encoding);
                 this.nullTerminated = stringAttribute.NullTerminated;
 
-                if (stringAttribute.NullTerminated && !nullTerminatedEncodings.Contains(this.encoding))
-                    throw new Exception(String.Format("The only string encodings which may be null-terminated are {0}", String.Join(", ", nullTerminatedEncodings.Select(x => x.EncodingName))));
-                if (!stringAttribute.NullTerminated && (stringAttribute.Length == 0 || stringAttribute.Length == 0))
-                {
-                    if (nullTerminatedEncodings.Contains(this.Encoding))
-                        throw new Exception(String.Format("{0} strings must either be null-terminated, to have a Length or Length Key (or both)", stringAttribute.Encoding));
-                    else
-                        throw new Exception(String.Format("{0} strings must either have a Length or LengthKey (or both)", stringAttribute.Encoding));
-                }
+                if (stringAttribute.NullTerminated && !NullTerminatedEncodings.Contains(this.encoding))
+                    throw new InvalidAttributeException(String.Format("The only string encodings which may be null-terminated are {0}", String.Join(", ", NullTerminatedEncodings.Select(x => x.EncodingName))), this.debugName);
             }
             else if (this.IsString)
             {
-                throw new Exception("String properties must be decorated with BitPackerString");
+                throw new InvalidAttributeException("String properties must be decorated with BitPackerString", this.debugName);
             }
 
             var arrayAttribute = propertyAttribute as BitPackerArrayAttribute;
             if (arrayAttribute != null && !isAttributeCascaded)
             {
                 if (!this.IsEnumerable && !this.IsString)
-                    throw new Exception("BitPackerArray can only be applied to properties which are arrays or IEnumerable<T>");
+                    throw new InvalidAttributeException("BitPackerArray can only be applied to properties which are arrays or IEnumerable<T>", this.debugName);
 
                 this.elementObjectDetails = new EnumerableElementObjectDetails(this.ElementType, propertyAttribute, this.Endianness);
                 this.length = arrayAttribute.Length;
                 this.lengthKey = arrayAttribute.LengthKey;
             }
-            else if (this.IsEnumerable)
+            else if (this.IsEnumerable && !this.IsString)
             {
                 throw new InvalidAttributeException("Arrays or IEnumerable<T> properties must be decorated with BitPackerArray, not BitPackerMember", this.debugName);
             }
@@ -339,7 +332,7 @@ namespace BitPacker
                 this.padContainerAfter = integerAttribute.PadContainerAfter;
             }
 
-            var arrayLengthAttribute = propertyAttribute as BitPackerArrayLengthAttribute;
+            var arrayLengthAttribute = propertyAttribute as BitPackerLengthKeyAttribute;
             if (arrayLengthAttribute != null)
             {
                 // Type-checking already done by BitPackerIntegerAttribute
@@ -402,14 +395,14 @@ namespace BitPacker
 
                 this.lengthFields = lengthFieldGroups.ToDictionary(x => x.Key, x => x.Single());
 
+                // TODO This could be neater...
                 var variableLengthArrayGroups = (from property in allProperties
-                                                 let attribute = property.propertyAttribute as BitPackerArrayAttribute
-                                                 where attribute != null && attribute.LengthKey != null
-                                                 group property by attribute.LengthKey).ToArray();
+                                                 where property.IsEnumerable && property.LengthKey != null
+                                                 group property by property.LengthKey).ToArray();
 
                 var firstVariableLengthArrayDuplicate = variableLengthArrayGroups.FirstOrDefault(x => x.Count() > 1);
                 if (firstVariableLengthArrayDuplicate != null)
-                    throw new Exception(String.Format("Found more than one variable-length array with length key '{0}'", firstLengthFieldDuplicate.Key));
+                    throw new InvalidArraySetupException(String.Format("Found more than one variable-length array with length key '{0}'", firstLengthFieldDuplicate.Key));
 
                 this.variableLengthArrays = variableLengthArrayGroups.ToDictionary(x => x.Key, x => x.Single());
             }
@@ -460,7 +453,8 @@ namespace BitPacker
         {
             if (parent.Type.IsArray)
             {
-                return Expression.Assign(Expression.ArrayAccess(parent, index), value);
+                // Array indexes have to be int32
+                return Expression.Assign(Expression.ArrayAccess(parent, Expression.Convert(index, typeof(int))), value);
             }
             if (parent.Type.Implements(typeof(IList<>)))
             {

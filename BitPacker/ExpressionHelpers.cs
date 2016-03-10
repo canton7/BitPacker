@@ -13,6 +13,7 @@ namespace BitPacker
     {
         private static readonly MethodInfo moveNextMethod = typeof(IEnumerator).GetMethod("MoveNext", new Type[0]);
         private static readonly MethodInfo stringFormatMethod = typeof(String).GetMethod("Format", new[] { typeof(string), typeof(string[]) });
+        private static readonly MethodInfo getByteCountMethod = typeof(Encoding).GetMethod("GetByteCount", new[] { typeof(string) });
 
         public static Expression ForEach(Expression collection, Type elementType, ParameterExpression loopVar, Expression loopContent)
         {
@@ -88,8 +89,16 @@ namespace BitPacker
             if (objectDetails.Type.IsArray)
                 return Expression.ArrayLength(collection);
             if (objectDetails.IsString)
-                return Expression.Property(collection, "Length");
+                return ByteCountOfString(collection, objectDetails);
             return Expression.Call(typeof(Enumerable), "Count", new[] { objectDetails.ElementType }, collection);
+        }
+
+        public static Expression ByteCountOfString(Expression str, ObjectDetails objectDetails)
+        {
+            var encoding = Expression.Constant(objectDetails.Encoding);
+            var numBytes = Expression.Call(encoding, getByteCountMethod, str);
+            var paddingBytes = objectDetails.NullTerminated ? 1 : 0;
+            return Expression.Add(numBytes, Expression.Constant(paddingBytes));
         }
 
         public static Expression TryTranslate(Expression block, List<string> memberPath)

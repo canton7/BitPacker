@@ -25,6 +25,16 @@ namespace BitPackerUnitTests
         }
 
         [BitPackerObject]
+        private class HasVariableLengthArray
+        {
+            [BitPackerLengthKey(LengthKey = "foo")]
+            public ushort Length { get; set; }
+
+            [BitPackerArray(LengthKey = "foo")]
+            public int[] Array { get; set; }
+        }
+
+        [BitPackerObject]
         private class HasVariableLengthArrayButNoLengthField
         {
             [BitPackerArray(LengthKey = "key")]
@@ -34,14 +44,14 @@ namespace BitPackerUnitTests
         [BitPackerObject]
         private class HasLengthFieldButNoVariableLengthArray
         {
-            [BitPackerArrayLength(LengthKey = "key")]
+            [BitPackerLengthKey(LengthKey = "key")]
             public int ArrayLength { get; set; }
         }
 
         [BitPackerObject]
         private class HasLengthFieldAndFixedLengthArray
         {
-            [BitPackerArrayLength(LengthKey = "key")]
+            [BitPackerLengthKey(LengthKey = "key")]
             public int Length { get; set; }
 
             [BitPackerArray(Length = 5, LengthKey = "key")]
@@ -51,10 +61,10 @@ namespace BitPackerUnitTests
         [BitPackerObject]
         private class HasTwoLengthFieldsForOneArray
         {
-            [BitPackerArrayLength(LengthKey = "key")]
+            [BitPackerLengthKey(LengthKey = "key")]
             public int Length1 { get; set; }
 
-            [BitPackerArrayLength(LengthKey = "key")]
+            [BitPackerLengthKey(LengthKey = "key")]
             public int Length2 { get; set; }
 
             [BitPackerArray(LengthKey = "key")]
@@ -115,6 +125,52 @@ namespace BitPackerUnitTests
             var cls = deserializer.Deserialize(bytes);
             var expected = new[] { 0x0A, 0x0B, 0x0C, 0x0D, 0x00 };
             Assert.Equal(expected, cls.IntArray);
+        }
+
+        [Fact]
+        public void SerializesVariableLengthArray()
+        {
+            var serializer = new BitPackerSerializer<HasVariableLengthArray>();
+            var bytes = serializer.Serialize(new HasVariableLengthArray() { Array = new[] { 1, 2, 3 } });
+            var expected = new byte[]
+            {
+                0x00, 0x03,
+                0x00, 0x00, 0x00, 0x01,
+                0x00, 0x00, 0x00, 0x02,
+                0x00, 0x00, 0x00, 0x03,
+            };
+            Assert.Equal(expected, bytes);
+        }
+
+        [Fact]
+        public void DeserializesVariableLengthArray()
+        {
+            var deserializer = new BitPackerDeserializer<HasVariableLengthArray>(Endianness.LittleEndian);
+            var bytes = new byte[]
+            {
+                0x03, 0x00,
+                0x01, 0x00, 0x00, 0x00,
+                0x02, 0x00, 0x00, 0x00,
+                0x03, 0x00, 0x00, 0x00
+            };
+            var cls = deserializer.Deserialize(bytes);
+
+            Assert.Equal(3, cls.Length);
+            Assert.Equal(new[] { 1, 2, 3 }, cls.Array);
+        }
+
+        [Fact]
+        public void IgnoresExistingLengthFieldValueWhenSerializing()
+        {
+            var serializer = new BitPackerSerializer<HasVariableLengthArray>();
+            var bytes = serializer.Serialize(new HasVariableLengthArray() { Length = 3, Array = new int[] { 1, 2, } });
+            var expected = new byte[]
+            {
+                0x00, 0x02,
+                0x00, 0x00, 0x00, 0x01,
+                0x00, 0x00, 0x00, 0x02,
+            };
+            Assert.Equal(expected, bytes);
         }
 
         [Fact]

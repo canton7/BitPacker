@@ -238,7 +238,7 @@ namespace BitPacker
             }
             else
             {
-                throw new BitPackerTranslationException(context.GetMemberPath(), new Exception("Unknown length for array"));
+                throw new BitPackerTranslationException(context.GetMemberPath(), new InvalidArraySetupException("Unknown length for array. Arrays must either have a Length or LengthKey for deserialziation"));
             }
 
             return arrayLength;
@@ -260,7 +260,7 @@ namespace BitPacker
                 var blockMembers = new List<Expression>();
 
                 var bytesArrayVar = Expression.Variable(typeof(byte[]), "bytes");
-                blockMembers.Add(Expression.Assign(bytesArrayVar, Expression.Call(this.reader, readBytesMethod, arrayLength)));
+                blockMembers.Add(Expression.Assign(bytesArrayVar, Expression.Call(this.reader, readBytesMethod, Expression.Convert(arrayLength, typeof(int)))));
                 if (arrayPaddingLength != null)
                     blockMembers.Add(Expression.Call(this.reader, readBytesMethod, arrayPaddingLength));
 
@@ -274,10 +274,9 @@ namespace BitPacker
 
                 block = Expression.Block(new[] { bytesArrayVar }, blockMembers);
             }
-            else
+            else if (objectDetails.NullTerminated && ObjectDetails.NullTerminatedEncodings.Contains(objectDetails.Encoding))
             {
-                Trace.Assert(objectDetails.Encoding == Encoding.ASCII); // ObjectDetails should have ensured this for us
-                // We've no choice but to walk the thing. Thankfully we know it's ASCII
+                // We've no choice but to walk the thing. Thankfully we know it's ASCII or UTF-8
                 // Once we find a null byte, that null's the last character of the string - but we don't know how long it's going to be....
 
                 var listCtor = typeof(List<byte>).GetConstructor(new Type[0]);
@@ -307,6 +306,15 @@ namespace BitPacker
                     stringRead
                 );
             }
+            else
+            {
+                Exception e;
+                if (ObjectDetails.NullTerminatedEncodings.Contains(objectDetails.Encoding))
+                    e = new InvalidStringSetupException(String.Format("{0} strings must either be null-terminated, or have a Length or Length Key (or both)", objectDetails.Encoding));
+                else
+                    e = new InvalidStringSetupException(String.Format("{0} strings must either have a Length or LengthKey (or both)", objectDetails.Encoding));
+                throw new BitPackerTranslationException(context.GetMemberPath(), e);
+            }
 
             return new TypeDetails(hasFixedLength, hasFixedLength ? objectDetails.EnumerableLength : 0, block);
         }
@@ -329,10 +337,10 @@ namespace BitPacker
 
             var typeDetails = this.DeserializeValue(context.Push(objectDetails.ElementObjectDetails, subject, "[]"));
 
-            var loopVar = Expression.Variable(typeof(int), "loopVar");
+            var loopVar = Expression.Variable(arrayLength.Type, "loopVar");
             var forLoop = ExpressionHelpers.For(
                 loopVar,
-                Expression.Constant(0),
+                Expression.Convert(Expression.Constant(0), arrayLength.Type),
                 Expression.LessThan(loopVar, arrayLength),
                 Expression.PostIncrementAssign(loopVar),
                 objectDetails.ElementObjectDetails.AssignExpression(subject, loopVar, typeDetails.OperationExpression)

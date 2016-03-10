@@ -139,7 +139,7 @@ namespace Sandbox
     [BitPackerObject]
     public class ClassContainingArrayLengthKey
     {
-        [BitPackerArrayLength(LengthKey = "key")]
+        [BitPackerLengthKey(LengthKey = "key")]
         public int Length { get; set; }
     }
 }

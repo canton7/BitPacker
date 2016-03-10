@@ -16,12 +16,7 @@ namespace BitPacker
         public Type Serializer { get; set; }
         public Type Deserializer { get; set; }
 
-        internal Endianness? NullableEndianness;
-        public Endianness Endianness
-        {
-            get { return this.NullableEndianness.GetValueOrDefault(Endianness.LittleEndian); }
-            set { this.NullableEndianness = value; }
-        }
+        internal Endianness? NullableEndianness { get; set; }
 
         public BitPackerMemberAttribute([CallerLineNumber] int order = 0)
         {
@@ -46,14 +41,22 @@ namespace BitPacker
         public string LengthKey { get; set; }
         public int Length { get; set; }
 
+        public Endianness Endianness
+        {
+            get { return this.NullableEndianness.GetValueOrDefault(Endianness.LittleEndian); }
+            set { this.NullableEndianness = value; }
+        }
+
         public BitPackerArrayAttribute([CallerLineNumber] int order = 0)
             : base(order)
         { }
     }
 
     [AttributeUsage(AttributeTargets.Property, Inherited = false, AllowMultiple = false)]
-    public sealed class BitPackerStringAttribute : BitPackerArrayAttribute
+    public sealed class BitPackerStringAttribute : BitPackerMemberAttribute
     {
+        public string LengthKey { get; set; }
+        public int Length { get; set; }
         public string Encoding { get; set; }
         public bool NullTerminated { get; set; }
 
@@ -67,7 +70,13 @@ namespace BitPacker
     [AttributeUsage(AttributeTargets.Property, Inherited = false, AllowMultiple = false)]
     public class BitPackerIntegerAttribute : BitPackerMemberAttribute
     {
-        internal int? NullableBitWidth;
+        public Endianness Endianness
+        {
+            get { return this.NullableEndianness.GetValueOrDefault(Endianness.LittleEndian); }
+            set { this.NullableEndianness = value; }
+        }
+
+        internal int? NullableBitWidth { get; private set; }
         public int BitWidth
         {
             get { return this.NullableBitWidth.GetValueOrDefault(0); }
@@ -92,7 +101,7 @@ namespace BitPacker
     }
 
     [AttributeUsage(AttributeTargets.Property, Inherited = false, AllowMultiple = false)]
-    public sealed class BitPackerArrayLengthAttribute : BitPackerIntegerAttribute
+    public sealed class BitPackerLengthKeyAttribute : BitPackerIntegerAttribute
     {
         public string LengthKey { get; set; }
         public bool Serialize
@@ -101,7 +110,7 @@ namespace BitPacker
             set { this.SerializeInternal = value; }
         }
 
-        public BitPackerArrayLengthAttribute([CallerLineNumber] int order = 0)
+        public BitPackerLengthKeyAttribute([CallerLineNumber] int order = 0)
             : base(order)
         { }
     }

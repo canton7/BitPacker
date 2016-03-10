@@ -14,7 +14,6 @@ namespace BitPacker
     {
         private static readonly MethodInfo writeBitfieldMethod = typeof(BitfieldBinaryWriter).GetMethod("WriteBitfield", new[] { typeof(ulong), typeof(int), typeof(int), typeof(bool) });
         private static readonly MethodInfo flushContainerMethod = typeof(BitfieldBinaryWriter).GetMethod("FlushContainer", new Type[0]);
-        private static readonly MethodInfo getByteCountMethod = typeof(Encoding).GetMethod("GetByteCount", new[] { typeof(string) });
         private static readonly MethodInfo getBytesMethod = typeof(Encoding).GetMethod("GetBytes", new[] { typeof(string), typeof(int), typeof(int), typeof(byte[]), typeof(int) });
         private static readonly MethodInfo serializeMethod = typeof(ICustomSerializer).GetMethod("Serialize", new[] { typeof(BinaryWriter), typeof(object), typeof(object) });
 
@@ -166,7 +165,7 @@ namespace BitPacker
             {
                 var arrayAccess = context.FindVariableLengthArrayWithLengthKey(objectDetails.LengthKey);
                 var length = ExpressionHelpers.LengthOfEnumerable(arrayAccess.Value, arrayAccess.ObjectDetails);
-                var assign = Expression.Assign(value, length);
+                var assign = Expression.Assign(value, Expression.Convert(length, objectDetails.Type));
                 blockMembers.Add(assign);
             }
 
@@ -229,10 +228,8 @@ namespace BitPacker
 
             var blockMembers = new List<Expression>();
 
-            var numBytes = Expression.Call(encoding, getByteCountMethod, str);
             var byteArrayVar = Expression.Variable(typeof(byte[]), "bytes");
-            var paddingBytes = context.ObjectDetails.NullTerminated ? 1 : 0;
-            var arrayInit = Expression.NewArrayBounds(typeof(byte), Expression.Add(numBytes, Expression.Constant(paddingBytes)));
+            var arrayInit = Expression.NewArrayBounds(typeof(byte), ExpressionHelpers.ByteCountOfString(str, context.ObjectDetails));
             var arrayAssign = Expression.Assign(byteArrayVar, arrayInit);
             var strLength = Expression.Property(str, "Length");
             var getBytesCall = Expression.Call(encoding, getBytesMethod, str, Expression.Constant(0), strLength, byteArrayVar, Expression.Constant(0));
@@ -246,8 +243,6 @@ namespace BitPacker
             );
 
             return new TypeDetails(typeDetails.HasFixedSize, typeDetails.MinSize, block);
-
-            //var  this.SerializeEnumerable(context.Push(context.ObjectDetails, call, "bytes"));
         }
 
         private TypeDetails SerializeEnumerable(TranslationContext context)

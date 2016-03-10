@@ -42,6 +42,13 @@ namespace BitPacker
         { }
     }
 
+    public class InvalidStringSetupException : BitPackerException
+    {
+        public InvalidStringSetupException(string message)
+            : base(message)
+        { }
+    }
+
     public class BitPackerException : Exception
     {
         public BitPackerException(string message)
