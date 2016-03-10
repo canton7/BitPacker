@@ -73,11 +73,14 @@ namespace BitPacker
 
             if (objectDetails.CustomSerializer != null)
                 return this.SerializeUsingSerializer(context);
+            
+            // For the sake of TranslationContext.FindLengthKey, and for symmetry with DeserializationExpressionBuilder
+            var localContext = context.PushIntermediateObject(objectDetails, context.Subject);
 
             Expression result;
             var typeDetails = objectDetails.Properties.Select(property =>
             {
-                var newContext = context.PushAssigned(property, property.AccessExpression(context.Subject), property.PropertyInfo.Name);
+                var newContext = localContext.Push(property, property.AccessExpression(context.Subject), property.PropertyInfo.Name);
 
                 if (!property.PropertyInfo.CanRead)
                     throw new BitPackerTranslationException("The property must have a public getter", newContext.GetMemberPath());
@@ -207,7 +210,7 @@ namespace BitPacker
         private TypeDetails SerializeEnum(TranslationContext context)
         {
             var equivalentObjectDetails = context.ObjectDetails.EnumEquivalentObjectDetails;
-            var newContext = context.PushAssigned(equivalentObjectDetails, Expression.Convert(context.Subject, equivalentObjectDetails.Type), null);
+            var newContext = context.Push(equivalentObjectDetails, Expression.Convert(context.Subject, equivalentObjectDetails.Type), null);
             return this.SerializePrimitive(newContext);
         }
 
@@ -215,7 +218,7 @@ namespace BitPacker
         {
             var type = context.ObjectDetails.BooleanEquivalentObjectDetails.Type;
             var value = Expression.Condition(context.Subject, Expression.Convert(Expression.Constant(1), type), Expression.Convert(Expression.Constant(0), type));
-            var newContext = context.PushAssigned(context.ObjectDetails.BooleanEquivalentObjectDetails, value, null);
+            var newContext = context.Push(context.ObjectDetails.BooleanEquivalentObjectDetails, value, null);
             return this.SerializePrimitive(newContext);
         }
 
@@ -234,7 +237,7 @@ namespace BitPacker
             var strLength = Expression.Property(str, "Length");
             var getBytesCall = Expression.Call(encoding, getBytesMethod, str, Expression.Constant(0), strLength, byteArrayVar, Expression.Constant(0));
 
-            var typeDetails = this.SerializeEnumerable(context.PushAssigned(context.ObjectDetails, byteArrayVar, "[]"));
+            var typeDetails = this.SerializeEnumerable(context.Push(context.ObjectDetails, byteArrayVar, "[]"));
 
             var block = Expression.Block(new[] { byteArrayVar },
                 arrayAssign,
@@ -276,7 +279,7 @@ namespace BitPacker
             // If they specified a length field, we've already assigned it (yay how organised as we?!)
 
             var loopVar = Expression.Variable(objectDetails.ElementType, "loopVariable");
-            var typeDetails = this.SerializeValue(context.PushAssigned(objectDetails.ElementObjectDetails, loopVar, "[]"));
+            var typeDetails = this.SerializeValue(context.Push(objectDetails.ElementObjectDetails, loopVar, "[]"));
             Expression loop;
             if (objectDetails.Type.IsArray || objectDetails.Type == typeof(string))
                 loop = ExpressionHelpers.ForElementsInArray(loopVar, enumerable, typeDetails.OperationExpression);
@@ -299,7 +302,7 @@ namespace BitPacker
                 blockVars.Add(emptyInstanceVar);
                 var emptyInstanceAssignment = ExpressionHelpers.TryTranslate(Expression.Assign(emptyInstanceVar, Expression.New(objectDetails.ElementType)), context.GetMemberPath());
 
-                var initAndSerialize = this.SerializeValue(context.PushAssigned(objectDetails.ElementObjectDetails, emptyInstanceVar, "[]")).OperationExpression;
+                var initAndSerialize = this.SerializeValue(context.Push(objectDetails.ElementObjectDetails, emptyInstanceVar, "[]")).OperationExpression;
                 var i = Expression.Variable(typeof(int), "i");
 
                 var padding = Expression.IfThen(

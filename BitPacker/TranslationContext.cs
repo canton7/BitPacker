@@ -12,14 +12,14 @@ namespace BitPacker
         public readonly ObjectDetails ObjectDetails;
         public readonly Expression Subject;
         public readonly string MemberName;
-        public readonly bool IsAssigned;
+        public readonly bool IsIntermediateObject;
 
-        public TranslationStepContext(ObjectDetails objectDetails, Expression subject, string memberName, bool isAssigned)
+        public TranslationStepContext(ObjectDetails objectDetails, Expression subject, string memberName, bool isIntermediateObject)
         {
             this.ObjectDetails = objectDetails;
             this.Subject = subject;
             this.MemberName = memberName;
-            this.IsAssigned = isAssigned;
+            this.IsIntermediateObject = isIntermediateObject;
         }
     }
 
@@ -51,14 +51,14 @@ namespace BitPacker
             this.stack = stack;
         }
 
-        public TranslationContext PushAssigned(ObjectDetails objectDetails, Expression subject, string memberName)
+        public TranslationContext Push(ObjectDetails objectDetails, Expression subject, string memberName)
         {
-            return new TranslationContext(this.stack.Push(new TranslationStepContext(objectDetails, subject, memberName, true)));
+            return new TranslationContext(this.stack.Push(new TranslationStepContext(objectDetails, subject, memberName, isIntermediateObject: false)));
         }
 
-        public TranslationContext PushUnassigned(ObjectDetails objectDetails, Expression subject)
+        public TranslationContext PushIntermediateObject(ObjectDetails objectDetails, Expression subject)
         {
-            return new TranslationContext(this.stack.Push(new TranslationStepContext(objectDetails, subject, null, false)));
+            return new TranslationContext(this.stack.Push(new TranslationStepContext(objectDetails, subject, null, isIntermediateObject: true)));
         }
 
         public PropertyObjectDetailsWithAccess FindLengthKey(string key)
@@ -83,7 +83,7 @@ namespace BitPacker
 
             foreach (var step in this.stack)
             {
-                if (!step.ObjectDetails.IsCustomType || !step.IsAssigned)
+                if (!step.ObjectDetails.IsCustomType || !step.IsIntermediateObject)
                     continue;
 
                 if (propertySelector(step.ObjectDetails).TryGetValue(key, out fieldOfInterest))
@@ -97,8 +97,8 @@ namespace BitPacker
 
                 var childCandidatesOfThisStep = (from property in step.ObjectDetails.Properties
                                                 let order = property.Order
-                                                from recursiveProperty in new[] { new PropertyObjectDetailsWithAccess(property, step.Subject) }
-                                                    .Concat(property.RecursiveFlatPropertyAccess(step.Subject))
+                                                from recursiveProperty in new[] { new PropertyObjectDetailsWithAccess(property, property.AccessExpression(step.Subject)) }
+                                                    .Concat(property.RecursiveFlatPropertyAccess(property.AccessExpression(step.Subject)))
                                                 where recursiveProperty.ObjectDetails.IsCustomType
                                                 from subFieldOfInterest in propertySelector(recursiveProperty.ObjectDetails)
                                                 select new

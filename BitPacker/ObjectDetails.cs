@@ -425,6 +425,7 @@ namespace BitPacker
         {
             if (this.properties == null)
                 return Enumerable.Empty<PropertyObjectDetailsWithAccess>();
+
             return this.properties.SelectMany(x =>
             {
                 var property = x.AccessExpression(subject);

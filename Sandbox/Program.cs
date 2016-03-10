@@ -16,7 +16,7 @@ namespace Sandbox
             var buffer = BitPackerTranslate.Serialize(new TestClass()
             {
                 //IntField = 3,
-                Array = new[] {  1, 2, 3 },
+                //Array = new[] {  1, 2, 3 },
                 //SubClass = new TestSubClass(),
                 //Enum = Test.Bar,
                 //TestBool = true,
@@ -24,14 +24,17 @@ namespace Sandbox
                 //Enum = Test.Bar,
                 //StringLength = 10,
                 //StringMember = "testy",
-                //Test = new TestSubClass()
-                //{
-                //    SubSubClass = new TestSubSubClass()
-                //    {
-                //        TheArray = new[] { 1, 2, 3 }
-                //    }
-                //},
-                //OtherSubClass = new TestOtherSubClass()
+
+                Test = new TestSubClass()
+                {
+                    ClassContainingArray = new ClassContainingArray()
+                    {
+                        TheArray = new[] { 1, 2, 3 }
+                    }
+                },
+
+                ClassContainingArrayLengthKey = new ClassContainingArrayLengthKey(),
+
                 //SubClass = new TestSubClass()
                 //{
                 //    FloatField = 5.0f
@@ -48,7 +51,7 @@ namespace Sandbox
 
             try
             {
-                var deserialized = BitPackerTranslate.Deserialize<TestClass>(buffer);
+                var deserialized = BitPackerTranslate.Deserialize<TestClass>(buffer); // new byte[] { 0, 0, 0, 3, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 3 });
             }
             catch (Exception)
             {
@@ -63,22 +66,24 @@ namespace Sandbox
     public class TestClass
     {
         //[BitPackerMember(CustomDeserializer = typeof(CustomDeserializer))]
-        //public TestSubClass SubClass { get; set; }
+        public TestSubClass SubClass { get; set; }
 
-        [BitPackerArrayLength(LengthKey = "test")]
-        public int ArrayLength { get; set; }
+        //[BitPackerArrayLength(LengthKey = "test")]
+        //public int ArrayLength { get; set; }
 
-        [BitPackerArray(LengthKey = "test")]
-        public int[] Array { get; set; }
+        //[BitPackerArray(LengthKey = "test")]
+        //public int[] Array { get; set; }
 
         //[BitPackerString(NullTerminated = true, Length = 5)]
         //public string StringMember { get; set; }
 
-        //[BitPackerMember]
-        //public TestOtherSubClass OtherSubClass { get; set; }
+        [BitPackerMember]
+        public TestSubClass Test { get; set; }
 
-        //[BitPackerMember]
-        //public TestSubClass Test { get; set; }
+        [BitPackerMember]
+        public ClassContainingArrayLengthKey ClassContainingArrayLengthKey { get; set; }
+
+        
 
         //[BitPackerMember]
         //public Test Enum { get; set; }
@@ -113,26 +118,26 @@ namespace Sandbox
         //    get { return 3; }
         //}
 
-        
+
     }
 
     [BitPackerObject]
     public class TestSubClass
     {
-        public int Foo { get; set; }
-        //[BitPackerMember]
-        //public TestSubSubClass SubSubClass { get; set; }
+        //public int Foo { get; set; }
+        [BitPackerMember]
+        public ClassContainingArray ClassContainingArray { get; set; }
     }
 
     [BitPackerObject]
-    public class TestSubSubClass
+    public class ClassContainingArray
     {
         [BitPackerArray(LengthKey = "key")]
         public int[] TheArray { get; set; }
     }
 
     [BitPackerObject]
-    public class TestOtherSubClass
+    public class ClassContainingArrayLengthKey
     {
         [BitPackerArrayLength(LengthKey = "key")]
         public int Length { get; set; }
