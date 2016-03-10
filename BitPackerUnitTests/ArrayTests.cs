@@ -39,6 +39,16 @@ namespace BitPackerUnitTests
         }
 
         [BitPackerObject]
+        private class HasLengthFieldAndFixedLengthArray
+        {
+            [BitPackerArrayLength(LengthKey = "key")]
+            public int Length { get; set; }
+
+            [BitPackerArray(Length = 5, LengthKey = "key")]
+            public int[] Array { get; set; }
+        }
+
+        [BitPackerObject]
         private class HasTwoLengthFieldsForOneArray
         {
             [BitPackerArrayLength(LengthKey = "key")]
@@ -131,6 +141,46 @@ namespace BitPackerUnitTests
         public void DeserializationOfObjectWithLengthFieldButNoCorrespondingArraySucceeds()
         {
             Assert.DoesNotThrow(() => new BitPackerDeserializer<HasLengthFieldButNoVariableLengthArray>());
+        }
+
+        [Fact]
+        public void SerializesVariableLengthArrayWithPadding()
+        {
+            var cls = new HasLengthFieldAndFixedLengthArray
+            {
+                Array = new[] { 1, 2, 3 }
+            };
+            var serializer = new BitPackerSerializer<HasLengthFieldAndFixedLengthArray>();
+            var bytes = serializer.Serialize(cls);
+            var expected = new byte[]
+            {
+                0x00, 0x00, 0x00, 0x03,
+                0x00, 0x00, 0x00, 0x01,
+                0x00, 0x00, 0x00, 0x02,
+                0x00, 0x00, 0x00, 0x03,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+            };
+            Assert.Equal(expected, bytes);
+        }
+
+        [Fact]
+        public void DeserializesVariableLengthArrayWithPadding()
+        {
+            var bytes = new byte[]
+            {
+                0x00, 0x00, 0x00, 0x03,
+                0x00, 0x00, 0x00, 0x01,
+                0x00, 0x00, 0x00, 0x02,
+                0x00, 0x00, 0x00, 0x03,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+            };
+            var deserializer = new BitPackerDeserializer<HasLengthFieldAndFixedLengthArray>();
+            var cls = deserializer.Deserialize(bytes);
+
+            Assert.Equal(3, cls.Length);
+            Assert.Equal(new[] { 1, 2, 3 }, cls.Array);
         }
 
         [Fact]
