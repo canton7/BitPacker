@@ -120,7 +120,8 @@ namespace BitPackerUnitTests
         [Fact]
         public void SerializationOfVariableLengthArrayWithNoLengthFieldSucceeds()
         {
-            Assert.DoesNotThrow(() => new BitPackerSerializer<HasVariableLengthArrayButNoLengthField>());
+            // Does not throw
+            new BitPackerSerializer<HasVariableLengthArrayButNoLengthField>();
         }
 
         [Fact]
@@ -140,7 +141,8 @@ namespace BitPackerUnitTests
         [Fact]
         public void DeserializationOfObjectWithLengthFieldButNoCorrespondingArraySucceeds()
         {
-            Assert.DoesNotThrow(() => new BitPackerDeserializer<HasLengthFieldButNoVariableLengthArray>());
+            // Does not throw
+            new BitPackerDeserializer<HasLengthFieldButNoVariableLengthArray>();
         }
 
         [Fact]

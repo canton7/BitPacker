@@ -36,3 +36,4 @@ packages/
 *.gjq
 *.tmp
 results.xml
+Coverage
