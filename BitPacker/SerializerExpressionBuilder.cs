@@ -189,12 +189,7 @@ namespace BitPacker
             // Therefore, handle this...
             else if (objectDetails.Endianness != EndianUtilities.HostEndianness && info.Size > 1)
             {
-                // If EndianUtilities has a Swap method for this type, then we can convert it
-                var swapMethod = typeof(EndianUtilities).GetMethod("Swap", new[] { objectDetails.Type } );
-                if (swapMethod != null)
-                    value = Expression.Call(swapMethod, value);
-                var writeExpression = info.SerializeExpression(this.writer, value);
-                blockMembers.Add(writeExpression);
+                blockMembers.Add(info.SwappedSerializeExpression(this.writer, value));
             }
             else
             {

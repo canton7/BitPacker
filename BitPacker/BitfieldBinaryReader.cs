@@ -19,7 +19,7 @@ namespace BitPacker
         public int BytesRead { get { return this.stream.BytesRead; } }
 
         public BitfieldBinaryReader(CountingStream input)
-            : base(input, Encoding.UTF8, true)
+            : base(input, Encoding.ASCII, true)
         {
             this.stream = input;
         }

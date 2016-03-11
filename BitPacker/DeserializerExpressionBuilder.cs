@@ -189,11 +189,7 @@ namespace BitPacker
             }
             else if (objectDetails.Endianness != EndianUtilities.HostEndianness && info.Size > 1)
             {
-                // If EndianUtilities has a Swap method for this type, then we can convert it
-                var swapMethod = typeof(EndianUtilities).GetMethod("Swap", new[] { objectDetails.Type });
-                readExpression = info.DeserializeExpression(this.reader);
-                if (swapMethod != null)
-                    readExpression = Expression.Call(swapMethod, readExpression);
+                readExpression = info.SwappedDeserializeExpression(this.reader);
             }
             else
             {

@@ -61,7 +61,7 @@
   <ItemGroup>
     <Compile Include="ArrayTests.cs" />
     <Compile Include="BooleanTests.cs" />
-    <Compile Include="IntegerTests.cs" />
+    <Compile Include="NumberTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="StringTests.cs" />
   </ItemGroup>

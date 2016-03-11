@@ -18,10 +18,12 @@ namespace BitPacker
         ulong MaxValue { get; }
         long MinValue { get; }
         Expression SerializeExpression(Expression writer, Expression value);
+        Expression SwappedSerializeExpression(Expression writer, Expression value);
         Expression DeserializeExpression(Expression reader);
+        Expression SwappedDeserializeExpression(Expression reader);
     }
 
-    internal class PrimitiveTypeInfo<T> : IPrimitiveTypeInfo where T : struct
+    internal abstract class PrimitiveTypeInfo<T> : IPrimitiveTypeInfo where T : struct
     {
         private readonly Type type;
         private readonly int size;
@@ -30,8 +32,8 @@ namespace BitPacker
         private readonly ulong maxValue;
         private readonly long minValue;
 
-        private MethodInfo serializeMethod;
-        private MethodInfo deserializeMethod;
+        protected readonly MethodInfo serializeMethod;
+        protected readonly MethodInfo deserializeMethod;
 
         public Type Type
         {
@@ -78,17 +80,13 @@ namespace BitPacker
             }
         }
 
-        public static PrimitiveTypeInfo<T> Integer(int size, bool isSigned, T minValue, T maxValue, Expression<Action<BitfieldBinaryWriter, T>> writer, Expression<Func<BitfieldBinaryReader, T>> reader)
-        {
-            return new PrimitiveTypeInfo<T>(size, true, isSigned, minValue, maxValue, writer, reader);
-        }
-
-        public static PrimitiveTypeInfo<T> NonInteger(int size, Expression<Action<BitfieldBinaryWriter, T>> writer, Expression<Func<BitfieldBinaryReader, T>> reader)
-        {
-            return new PrimitiveTypeInfo<T>(size, false, false, default(T), default(T), writer, reader);
-        }
-
-        private PrimitiveTypeInfo(int size, bool isIntegral, bool isSigned, T minValue, T maxValue, Expression<Action<BitfieldBinaryWriter, T>> writer, Expression<Func<BitfieldBinaryReader, T>> reader)
+        protected PrimitiveTypeInfo(int size,
+            bool isIntegral,
+            bool isSigned,
+            T minValue,
+            T maxValue,
+            Expression<Action<BitfieldBinaryWriter, T>> writer,
+            Expression<Func<BitfieldBinaryReader, T>> reader)
         {
             this.type = typeof(T);
             this.size = size;
@@ -97,8 +95,11 @@ namespace BitPacker
             this.minValue = Convert.ToInt64(minValue);
             this.maxValue = Convert.ToUInt64(maxValue);
 
-            this.serializeMethod = ((MethodCallExpression)writer.Body).Method;
-            this.deserializeMethod = ((MethodCallExpression)reader.Body).Method;
+            if (writer != null)
+                this.serializeMethod = ((MethodCallExpression)writer.Body).Method;
+
+            if (reader != null)
+                this.deserializeMethod = ((MethodCallExpression)reader.Body).Method;
         }
 
         public Expression SerializeExpression(Expression writer, Expression value)
@@ -106,9 +107,78 @@ namespace BitPacker
             return Expression.Call(writer, this.serializeMethod, value);
         }
 
+        public abstract Expression SwappedSerializeExpression(Expression writer, Expression value);
+
         public Expression DeserializeExpression(Expression reader)
         {
             return Expression.Call(reader, this.deserializeMethod);
+        }
+
+        public abstract Expression SwappedDeserializeExpression(Expression reader);
+    }
+
+    internal class IntegerPrimitiveTypeInfo<T> : PrimitiveTypeInfo<T> where T : struct
+    {
+        private readonly MethodInfo swapMethod;
+
+        public IntegerPrimitiveTypeInfo(int size,
+            bool isSigned,
+            T minValue,
+            T maxValue,
+            Expression<Action<BitfieldBinaryWriter, T>> writer,
+            Expression<Func<BitfieldBinaryReader, T>> reader,
+            Expression<Func<T, T>> swapper)
+            : base(size, true, isSigned, minValue, maxValue, writer, reader)
+        {
+            if (swapper != null)
+                this.swapMethod = ((MethodCallExpression)swapper.Body).Method;
+        }
+
+        public override Expression SwappedSerializeExpression(Expression writer, Expression value)
+        {
+            if (this.swapMethod == null)
+                return this.SerializeExpression(writer, value);
+            return Expression.Call(writer, this.serializeMethod, Expression.Call(this.swapMethod, value));
+        }
+
+        public override Expression SwappedDeserializeExpression(Expression reader)
+        {
+            if (this.swapMethod == null)
+                return this.DeserializeExpression(reader);
+            return Expression.Call(this.swapMethod, Expression.Call(reader, this.deserializeMethod));
+        }
+    }
+
+    internal class NonIntegerPrimitiveTypeInfo<T> : PrimitiveTypeInfo<T> where T : struct
+    {
+        private static readonly MethodInfo writeBytesMethod = typeof(BitfieldBinaryWriter).GetMethod("Write", new[] { typeof(byte[]) });
+        private static readonly MethodInfo readBytesMethod = typeof(BitfieldBinaryReader).GetMethod("ReadBytes", new[] { typeof(int) });
+
+        private readonly MethodInfo writeSwapperMethod;
+        private readonly MethodInfo readSwapperMethod;
+
+        public NonIntegerPrimitiveTypeInfo(int size,
+            Expression<Action<BitfieldBinaryWriter, T>> writer,
+            Expression<Func<BitfieldBinaryReader, T>> reader,
+            Expression<Func<T, byte[]>> writeSwapper,
+            Expression<Func<byte[], T>> readSwapper)
+            : base(size, false, false, default(T), default(T), writer, reader)
+        {
+            if (writeSwapper != null)
+                this.writeSwapperMethod = ((MethodCallExpression)writeSwapper.Body).Method;
+
+            if (readSwapper != null)
+                this.readSwapperMethod = ((MethodCallExpression)readSwapper.Body).Method;
+        }
+
+        public override Expression SwappedSerializeExpression(Expression writer, Expression value)
+        {
+            return Expression.Call(writer, writeBytesMethod, Expression.Call(this.writeSwapperMethod, value));
+        }
+
+        public override Expression SwappedDeserializeExpression(Expression reader)
+        {
+            return Expression.Call(this.readSwapperMethod, Expression.Call(reader, readBytesMethod, Expression.Constant(this.Size)));
         }
     }
 }

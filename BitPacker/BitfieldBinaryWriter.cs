@@ -19,7 +19,7 @@ namespace BitPacker
         public int BytesWritten { get { return this.stream.BytesWritten; } }
 
         public BitfieldBinaryWriter(CountingStream output)
-            : base(output, Encoding.UTF8, true)
+            : base(output, Encoding.ASCII, true)
         {
             this.stream = output;
         }

@@ -64,20 +64,54 @@ namespace BitPacker
             }
         }
 
-        public static float Swap(float val)
+        public static byte[] SwapToBytes(float val)
         {
-            // Alternatives are BitConverter.ToSingle(BitConverter.GetBytes(val).Reverse().ToArray(), 0)
-            // and BitConverter.ToSingle(BitConverter.GetBytes(Swap(BitConverter.ToInt32(BitConverter.GetBytes(val), 0))), 0)
-            // Neither's particularly efficient however
-            return ToSingle(Swap(ToInt32(val)));
+            return BitConverter.GetBytes(Swap(ToInt32(val)));
         }
 
-        public static double Swap(double val)
+        public static float SwapSingleFromBytes(byte[] bytes)
         {
-            // We *could* use BitConverter.Int64BitsToDouble(Swap(BitConverter.DoubleToInt64Bits(val))), but that throws if
-            // system endianness isn't LittleEndian... Unlikely to ever not be the case, but we have a good workaround
-            // (and we don't require that assertion)
-            return ToDouble(Swap(ToInt64(val)));
+            return ToSingle(Swap(BitConverter.ToInt32(bytes, 0)));
+        }
+
+        public static byte[] SwapToBytes(double val)
+        {
+            return BitConverter.GetBytes(Swap(ToInt64(val)));
+        }
+
+        public static double SwapDoubleFromBytes(byte[] bytes)
+        {
+            return ToDouble(Swap(BitConverter.ToInt64(bytes, 0)));
+        }
+
+
+        public static byte[] SwapToBytes(decimal val)
+        {
+            int[] ints = Decimal.GetBits(val);
+            byte[] bytes = new byte[4 * 4];
+            
+            // Read the ints right-left, and write each one right-most byte first
+            for (int i = 0; i < 4; i++)
+            {
+                var thisInt = ints[4 - 1 - i];
+                bytes[i * 4 + 0] = (byte)(thisInt >> 24);
+                bytes[i * 4 + 1] = (byte)(thisInt >> 16);
+                bytes[i * 4 + 2] = (byte)(thisInt >> 8);
+                bytes[i * 4 + 3] = (byte)thisInt;
+            }
+
+            return bytes;
+        }
+
+        public static decimal SwapDecimalFromBytes(byte[] bytes)
+        {
+            int[] ints = new int[4];
+            for (int i = 0; i < 4; i++)
+            {
+                // First byte forms the highest byte of the last int
+                ints[4 - 1 - i] = (bytes[i * 4 + 0] << 24) | (bytes[i * 4 + 1] << 16) | (bytes[i * 4 + 2] << 8) | bytes[i * 4 + 3];
+            }
+            return new Decimal(ints);
         }
 
         // Thanks to chilvers in ##csharp: https://gist.github.com/chilversc/f4a031f6f7327f2e5ab4
