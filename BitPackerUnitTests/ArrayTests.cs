@@ -71,6 +71,16 @@ namespace BitPackerUnitTests
             public int[] IntArray { get; set; }
         }
 
+        [BitPackerObject]
+        private class HasVariableLengthTypeAndLengthField
+        {
+            [BitPackerLengthKey(LengthKey = "key")]
+            public uint Length { get; set; }
+
+            [BitPackerArray(LengthKey = "key")]
+            public string[] Array { get; set; }
+        }
+
         [Fact]
         public void ThrowsIfArrayNotDecoratedWithPitPackerArrayAttribute()
         {
@@ -252,5 +262,13 @@ namespace BitPackerUnitTests
         {
             Assert.Throws<InvalidArraySetupException>(() => new BitPackerDeserializer<HasTwoLengthFieldsForOneArray>());
         }
+
+        //[Fact]
+        //public void SerializesVariableLengthArrayContentsWithLengthKey()
+        //{
+        //    var serializer = new BitPackerSerializer<HasVariableLengthTypeAndLengthField>();
+        //    var cls = new HasVariableLengthTypeAndLengthField() { Array = new[] { "foo", "bar" } };
+        //    var bytes = serializer.Serialize(cls);
+        //}
     }
 }

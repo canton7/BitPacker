@@ -324,7 +324,7 @@ namespace BitPacker
                 var typeToCheck = this.equivalentType ?? this.Type;
                 IPrimitiveTypeInfo primitiveTypeInfo;
                 if (!PrimitiveTypes.Types.TryGetValue(typeToCheck, out primitiveTypeInfo) || !primitiveTypeInfo.IsIntegral)
-                    throw new Exception("Properties decorated with BitPackerInteger or BitPackerArrayLength must be integral");
+                    throw new Exception("Properties decorated with BitPackerInteger or BitPackerLengthKey must be integral");
 
                 this.bitWidth = integerAttribute.NullableBitWidth;
                 if (this.bitWidth.HasValue && this.bitWidth.Value <= 0)
