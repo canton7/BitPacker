@@ -19,9 +19,10 @@ namespace BitPacker
         protected IReadOnlyDictionary<string, PropertyObjectDetails> lengthFields;
         protected IReadOnlyDictionary<string, PropertyObjectDetails> variableLengthArrays;
         protected readonly BitPackerObjectAttribute objectAttribute;
-        protected readonly ImmutableStack<BitPackerMemberAttribute> propertyAttributes;
         protected readonly string lengthKey;
         protected readonly int length;
+        protected readonly bool serialize;
+        protected readonly int order;
         protected readonly Encoding encoding;
         protected readonly bool nullTerminated;
         protected readonly EnumerableElementObjectDetails elementObjectDetails;
@@ -33,6 +34,7 @@ namespace BitPacker
         protected readonly int? bitWidth;
         protected readonly bool padContainerAfter;
         protected readonly bool isPrimitiveType;
+        protected readonly bool isLengthField;
         protected readonly IPrimitiveTypeInfo primitiveTypeInfo;
 
         public Type Type
@@ -149,12 +151,12 @@ namespace BitPacker
 
         public bool Serialize
         {
-            get { return this.propertyAttributes.Peek().SerializeInternal; }
+            get { return this.serialize; }
         }
 
         public int Order
         {
-            get { return this.propertyAttributes.Peek().Order; }
+            get { return this.order; }
         }
 
         public Type CustomSerializer
@@ -204,7 +206,7 @@ namespace BitPacker
 
         public bool IsLengthField
         {
-            get { return this.propertyAttributes.Peek() is BitPackerLengthKeyAttribute; }
+            get { return this.isLengthField; }
         }
 
         public IPrimitiveTypeInfo PrimitiveTypeInfo
@@ -217,128 +219,130 @@ namespace BitPacker
             }
         }
 
-        public ObjectDetails(Type type, ImmutableStack<BitPackerMemberAttribute> propertyAttributes, Endianness? endianness = null, bool isAttributeCascaded = false)
-            : this(type, type.Description(), propertyAttributes, endianness, isAttributeCascaded)
+        public ObjectDetails(Type type, ObjectDetails parent, ImmutableStack<BitPackerMemberAttribute> propertyAttributes, Endianness? endianness = null)
+            : this(type, type.Description(), parent, propertyAttributes, endianness)
         { }
 
-        public ObjectDetails(Type type, string debugName, ImmutableStack<BitPackerMemberAttribute> propertyAttributes, Endianness? endianness = null, bool isAttributeCascaded = false)
+        public ObjectDetails(Type type, string debugName, ObjectDetails parent, ImmutableStack<BitPackerMemberAttribute> propertyAttributes, Endianness? endianness = null)
         {
             this.type = type;
             this.debugName = debugName;
             this.objectAttribute = this.type.GetCustomAttribute<BitPackerObjectAttribute>();
             this.endianness = endianness;
-            this.propertyAttributes = propertyAttributes;
             this.isPrimitiveType = PrimitiveTypes.IsPrimitive(this.type);
             if (this.isPrimitiveType)
                 this.primitiveTypeInfo = PrimitiveTypes.Types[this.type];
 
-            var propertyAttribute = propertyAttributes.Peek();
+            var propertyAttribute = propertyAttributes.PeekOrDefault();
 
+            this.serialize = propertyAttribute?.SerializeInternal ?? parent.Serialize;
+            this.order = propertyAttribute?.Order ?? parent.Order;
+            this.isLengthField = propertyAttribute is BitPackerLengthKeyAttribute;
             if (this.endianness == null && this.objectAttribute != null)
                 this.endianness = this.objectAttribute.Endianness;
 
-            if (propertyAttribute.NullableEndianness != null)
+            if (propertyAttribute?.NullableEndianness != null)
                 this.endianness = propertyAttribute.NullableEndianness.Value;
+            else
+                this.endianness = parent?.Endianness;
 
-            this.customSerializer = propertyAttribute.Serializer;
-            if (this.customSerializer == null && this.objectAttribute != null)
-                this.customSerializer = this.objectAttribute.Serializer;
+            this.customSerializer = propertyAttribute?.Serializer ?? parent?.CustomSerializer ?? this.objectAttribute?.Serializer;
+            this.customDeserializer = propertyAttribute?.Deserializer ?? parent?.CustomDeserializer ?? this.objectAttribute?.Deserializer;
 
-            this.customDeserializer = propertyAttribute.Deserializer;
-            if (this.customDeserializer == null && this.objectAttribute != null)
-                this.customDeserializer = this.objectAttribute.Deserializer;
-
-            var stringAttribute = propertyAttribute as BitPackerStringAttribute;
-            if (stringAttribute != null && !isAttributeCascaded)
+            if (propertyAttribute != null)
             {
-                if (!this.IsString)
-                    throw new InvalidAttributeException("BitPackerString can only be applied to properties which are strings", this.debugName);
+                var stringAttribute = propertyAttribute as BitPackerStringAttribute;
+                if (stringAttribute != null)
+                {
+                    if (!this.IsString)
+                        throw new InvalidAttributeException("BitPackerString can only be applied to properties which are strings", this.debugName);
 
-                this.elementObjectDetails = new EnumerableElementObjectDetails(this.ElementType, propertyAttributes);
-                this.length = stringAttribute.Length;
-                this.lengthKey = stringAttribute.LengthKey;
-                this.encoding = Encoding.GetEncoding(stringAttribute.Encoding);
-                this.nullTerminated = stringAttribute.NullTerminated;
+                    this.elementObjectDetails = new EnumerableElementObjectDetails(this.ElementType, this, propertyAttributes.PopOrEmpty());
+                    this.length = stringAttribute.Length;
+                    this.lengthKey = stringAttribute.LengthKey;
+                    this.encoding = Encoding.GetEncoding(stringAttribute.Encoding);
+                    this.nullTerminated = stringAttribute.NullTerminated;
 
-                if (stringAttribute.NullTerminated && !NullTerminatedEncodings.Contains(this.encoding))
-                    throw new InvalidAttributeException(String.Format("The only string encodings which may be null-terminated are {0}", String.Join(", ", NullTerminatedEncodings.Select(x => x.EncodingName))), this.debugName);
-            }
-            else if (this.IsString)
-            {
-                throw new InvalidAttributeException("String properties must be decorated with BitPackerString", this.debugName);
-            }
+                    if (stringAttribute.NullTerminated && !NullTerminatedEncodings.Contains(this.encoding))
+                        throw new InvalidAttributeException(String.Format("The only string encodings which may be null-terminated are {0}", String.Join(", ", NullTerminatedEncodings.Select(x => x.EncodingName))), this.debugName);
+                }
+                else if (this.IsString)
+                {
+                    throw new InvalidAttributeException("String properties must be decorated with BitPackerString", this.debugName);
+                }
 
-            var arrayAttribute = propertyAttribute as BitPackerArrayAttribute;
-            if (arrayAttribute != null && !isAttributeCascaded)
-            {
-                if (!this.IsEnumerable && !this.IsString)
-                    throw new InvalidAttributeException("BitPackerArray can only be applied to properties which are arrays or IEnumerable<T>", this.debugName);
+                var arrayAttribute = propertyAttribute as BitPackerArrayAttribute;
+                if (arrayAttribute != null)
+                {
+                    if (!this.IsEnumerable && !this.IsString)
+                        throw new InvalidAttributeException("BitPackerArray can only be applied to properties which are arrays or IEnumerable<T>", this.debugName);
 
-                this.elementObjectDetails = new EnumerableElementObjectDetails(this.ElementType, propertyAttributes, this.Endianness);
-                this.length = arrayAttribute.Length;
-                this.lengthKey = arrayAttribute.LengthKey;
-            }
-            else if (this.IsEnumerable && !this.IsString)
-            {
-                throw new InvalidAttributeException("Arrays or IEnumerable<T> properties must be decorated with BitPackerArray", this.debugName);
-            }
+                    this.elementObjectDetails = new EnumerableElementObjectDetails(this.ElementType, this, propertyAttributes.PopOrEmpty(), this.Endianness);
+                    this.length = arrayAttribute.Length;
+                    this.lengthKey = arrayAttribute.LengthKey;
+                }
+                else if (this.IsEnumerable && !this.IsString)
+                {
+                    throw new InvalidAttributeException("Arrays or IEnumerable<T> properties must be decorated with BitPackerArray", this.debugName);
+                }
 
-            // Check has to happen before BitPackerIntegerAttribute
-            var booleanAttribute = propertyAttribute as BitPackerBooleanAttribute;
-            if (booleanAttribute != null && !isAttributeCascaded)
-            {
-                if (!this.IsBoolean)
-                    throw new InvalidAttributeException("Properties decorated with BitPackerBoolean must be booleans", this.debugName);
+                // Check has to happen before BitPackerIntegerAttribute
+                var booleanAttribute = propertyAttribute as BitPackerBooleanAttribute;
+                if (booleanAttribute != null)
+                {
+                    if (!this.IsBoolean)
+                        throw new InvalidAttributeException("Properties decorated with BitPackerBoolean must be booleans", this.debugName);
 
-                var equivalentType = booleanAttribute.Type;
-                if (equivalentType == typeof(bool))
-                    equivalentType = null;
-                if (equivalentType != null)
-                    this.EnsureTypeIsInteger(booleanAttribute.Type);
-                this.equivalentType = booleanAttribute.Type;
-            }
-            if (this.IsBoolean)
-            {
-                this.equivalentType = this.equivalentType ?? typeof(int);
-                this.booleanEquivalentObjectDetails = new ObjectDetails(this.equivalentType, propertyAttributes, this.Endianness, true);
-            }
+                    var equivalentType = booleanAttribute.Type;
+                    if (equivalentType == typeof(bool))
+                        equivalentType = null;
+                    if (equivalentType != null)
+                        this.EnsureTypeIsInteger(booleanAttribute.Type);
+                    this.equivalentType = booleanAttribute.Type;
+                }
+                if (this.IsBoolean)
+                {
+                    this.equivalentType = this.equivalentType ?? typeof(int);
+                    this.booleanEquivalentObjectDetails = new ObjectDetails(this.equivalentType, this, propertyAttributes.PopOrEmpty(), this.Endianness);
+                }
 
-            // Check has to happen before BitPackerIntegerAttribute
-            var enumAttribute = propertyAttribute as BitPackerEnumAttribute;
-            if (enumAttribute != null && !isAttributeCascaded)
-            {
-                if (!this.Type.IsEnum)
-                    throw new Exception("Properties decorated with BitPackerEnum must be enums");
+                // Check has to happen before BitPackerIntegerAttribute
+                var enumAttribute = propertyAttribute as BitPackerEnumAttribute;
+                if (enumAttribute != null)
+                {
+                    if (!this.Type.IsEnum)
+                        throw new Exception("Properties decorated with BitPackerEnum must be enums");
 
-                this.EnsureTypeIsInteger(enumAttribute.Type);
-                this.equivalentType = enumAttribute.Type;
-            }
-            if (this.IsEnum)
-            {
-                var enumType = this.equivalentType ?? Enum.GetUnderlyingType(this.Type);
-                this.enumEquivalentObjectDetails = new ObjectDetails(enumType, propertyAttributes, this.Endianness, true);
-                this.CheckEnum(enumType);
-            }
+                    this.EnsureTypeIsInteger(enumAttribute.Type);
+                    this.equivalentType = enumAttribute.Type;
+                }
+                if (this.IsEnum)
+                {
+                    var enumType = this.equivalentType ?? Enum.GetUnderlyingType(this.Type);
+                    this.enumEquivalentObjectDetails = new ObjectDetails(enumType, this, propertyAttributes.PopOrEmpty(), this.Endianness);
+                    this.CheckEnum(enumType);
+                }
 
-            var integerAttribute = propertyAttribute as BitPackerIntegerAttribute;
-            if (integerAttribute != null)
-            {
-                var typeToCheck = this.equivalentType ?? this.Type;
-                IPrimitiveTypeInfo primitiveTypeInfo;
-                if (!PrimitiveTypes.Types.TryGetValue(typeToCheck, out primitiveTypeInfo) || !primitiveTypeInfo.IsIntegral)
-                    throw new Exception("Properties decorated with BitPackerInteger or BitPackerLengthKey must be integral");
+                var integerAttribute = propertyAttribute as BitPackerIntegerAttribute;
+                if (integerAttribute != null)
+                {
+                    var typeToCheck = this.equivalentType ?? this.Type;
+                    IPrimitiveTypeInfo primitiveTypeInfo;
+                    if (!PrimitiveTypes.Types.TryGetValue(typeToCheck, out primitiveTypeInfo) || !primitiveTypeInfo.IsIntegral)
+                        throw new Exception("Properties decorated with BitPackerInteger or BitPackerLengthKey must be integral");
 
-                this.bitWidth = integerAttribute.NullableBitWidth;
-                if (this.bitWidth.HasValue && this.bitWidth.Value <= 0)
-                    throw new Exception("Bit Width must be > 0");
-                this.padContainerAfter = integerAttribute.PadContainerAfter;
-            }
+                    this.bitWidth = integerAttribute.NullableBitWidth;
+                    if (this.bitWidth.HasValue && this.bitWidth.Value <= 0)
+                        throw new Exception("Bit Width must be > 0");
+                    this.padContainerAfter = integerAttribute.PadContainerAfter;
+                }
 
-            var arrayLengthAttribute = propertyAttribute as BitPackerLengthKeyAttribute;
-            if (arrayLengthAttribute != null)
-            {
-                // Type-checking already done by BitPackerIntegerAttribute
-                this.lengthKey = arrayLengthAttribute.LengthKey;
+                var arrayLengthAttribute = propertyAttribute as BitPackerLengthKeyAttribute;
+                if (arrayLengthAttribute != null)
+                {
+                    // Type-checking already done by BitPackerIntegerAttribute
+                    this.lengthKey = arrayLengthAttribute.LengthKey;
+                }
             }
         }
 
@@ -377,14 +381,14 @@ namespace BitPacker
             if (this.objectAttribute != null)
             {
                 var allProperties = (from property in this.type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-                                     let attributes = property.GetCustomAttributes<BitPackerMemberAttribute>(false).OrderBy(x => x.Order)
+                                     let attributes = property.GetCustomAttributes<BitPackerMemberAttribute>(false).OrderByDescending(x => x.Order)
                                      let firstAttribute = attributes.FirstOrDefault()
                                      where firstAttribute != null
                                      let attributesStack = ImmutableStack.From(attributes) // Put the one with the lowest order at the top of the stack
                                      orderby firstAttribute.Order
-                                     select new PropertyObjectDetails(this.type, property, attributesStack, this.Endianness)).ToList();
+                                     select new PropertyObjectDetails(this.type, this, property, attributesStack, this.Endianness)).ToList();
 
-                var properties = allProperties.Where(x => x.propertyAttributes.Peek().SerializeInternal).ToList();
+                var properties = allProperties.Where(x => x.Serialize).ToList();
                 foreach (var property in properties)
                 {
                     property.Discover();
@@ -435,8 +439,8 @@ namespace BitPacker
     {
         public PropertyInfo PropertyInfo { get; private set; }
 
-        public PropertyObjectDetails(Type parentType, PropertyInfo propertyInfo, ImmutableStack<BitPackerMemberAttribute> propertyAttributes, Endianness? endianness = null)
-            : base(propertyInfo.PropertyType, String.Format("{0}.{1}", parentType.Description(), propertyInfo.Name), propertyAttributes, endianness)
+        public PropertyObjectDetails(Type parentType, ObjectDetails parent, PropertyInfo propertyInfo, ImmutableStack<BitPackerMemberAttribute> propertyAttributes, Endianness? endianness = null)
+            : base(propertyInfo.PropertyType, String.Format("{0}.{1}", parentType.Description(), propertyInfo.Name), parent, propertyAttributes, endianness)
         {
             this.PropertyInfo = propertyInfo;
         }
@@ -449,8 +453,8 @@ namespace BitPacker
 
     internal class EnumerableElementObjectDetails : ObjectDetails
     {
-        public EnumerableElementObjectDetails(Type type, ImmutableStack<BitPackerMemberAttribute> propertyAttributes, Endianness? endianness = null)
-            : base(type, propertyAttributes, endianness, true)
+        public EnumerableElementObjectDetails(Type type, ObjectDetails parent, ImmutableStack<BitPackerMemberAttribute> propertyAttributes, Endianness? endianness = null)
+            : base(type, parent, propertyAttributes, endianness)
         { }
 
         public Expression AssignExpression(ParameterExpression parent, Expression index, Expression value)

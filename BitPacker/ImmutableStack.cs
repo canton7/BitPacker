@@ -11,8 +11,11 @@ namespace BitPacker
     {
         public abstract ImmutableStack<T> Push(T value);
         public abstract ImmutableStack<T> Pop();
+        public abstract ImmutableStack<T> PopOrEmpty();
         public abstract T Peek();
+        public abstract T PeekOrDefault();
         public abstract bool IsEmpty { get; }
+        public abstract int Count { get; }
 
         private sealed class EmptyStack : ImmutableStack<T>
         {
@@ -21,9 +24,19 @@ namespace BitPacker
                 get { return true; }
             }
 
+            public override int Count
+            {
+                get { return 0; }
+            }
+
             public override T Peek()
             {
                 throw new Exception("Empty stack");
+            }
+
+            public override T PeekOrDefault()
+            {
+                return default(T);
             }
 
             public override ImmutableStack<T> Push(T value)
@@ -35,32 +48,54 @@ namespace BitPacker
             {
                 throw new Exception("Empty stack");
             }
+
+            public override ImmutableStack<T> PopOrEmpty()
+            {
+                return Empty;
+            }
         }
 
         private sealed class NonEmptyStack : ImmutableStack<T>
         {
             private readonly T head;
             private readonly ImmutableStack<T> tail;
+            private readonly int count;
 
             public override bool IsEmpty
             {
                 get { return false; }
             }
 
+            public override int Count
+            {
+                get { return this.count; }
+            }
+
             public NonEmptyStack(T head, ImmutableStack<T> tail)
             {
                 this.head = head;
                 this.tail = tail;
+                this.count = tail.Count + 1;
             }
 
             public override T Peek()
             {
-                return head;
+                return this.head;
+            }
+
+            public override T PeekOrDefault()
+            {
+                return this.head;
             }
 
             public override ImmutableStack<T> Pop()
             {
-                return tail;
+                return this.tail;
+            }
+
+            public override ImmutableStack<T> PopOrEmpty()
+            {
+                return this.tail;
             }
 
             public override ImmutableStack<T> Push(T value)

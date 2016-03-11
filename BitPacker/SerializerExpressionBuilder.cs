@@ -30,7 +30,7 @@ namespace BitPacker
 
         public TypeDetails BuildExpression(Expression subject)
         {
-            var objectDetails = new ObjectDetails(this.objectType, ImmutableStack.Init(new BitPackerMemberAttribute(0) { NullableEndianness = this.defaultEndianness }));
+            var objectDetails = new ObjectDetails(this.objectType, null, ImmutableStack.Init(new BitPackerMemberAttribute(0) { NullableEndianness = this.defaultEndianness }));
             objectDetails.Discover();
 
             var context = new TranslationContext(objectDetails, subject);
@@ -300,30 +300,42 @@ namespace BitPacker
             //         writer.Write(emptyInstance); // Or whatever the writing expression happens to be
             //     }
             // }
+            // If SomeType doesn't have a default constructor, only throw if lengthVar < property.EnumerableLength
             if (hasFixedLength)
             {
                 var emptyInstanceVar = Expression.Variable(objectDetails.ElementType, "emptyInstance");
                 blockVars.Add(emptyInstanceVar);
-                var emptyInstanceAssignment = ExpressionHelpers.TryTranslate(Expression.Assign(emptyInstanceVar, Expression.New(objectDetails.ElementType)), context.GetMemberPath());
 
-                var initAndSerialize = this.SerializeValue(context.Push(objectDetails.ElementObjectDetails, emptyInstanceVar, "[]")).OperationExpression;
-                var i = Expression.Variable(typeof(int), "i");
+                var elementTypeCtor = objectDetails.ElementType.GetConstructor(Type.EmptyTypes);
+                // GetConstructor doesn't pick up on a struct's default parameterless constructor
+                if (elementTypeCtor != null || objectDetails.ElementType.IsValueType)
+                {
+                    var emptyInstanceAssignment = ExpressionHelpers.TryTranslate(Expression.Assign(emptyInstanceVar, Expression.New(objectDetails.ElementType)), context.GetMemberPath());
 
-                var padding = Expression.IfThen(
-                    Expression.LessThan(lengthVar, Expression.Constant(objectDetails.EnumerableLength)),
-                    Expression.Block(new[] { emptyInstanceVar },
-                        emptyInstanceAssignment,
-                        ExpressionHelpers.For(
-                            i,
-                            lengthVar,
-                            Expression.LessThan(i, Expression.Constant(objectDetails.EnumerableLength)),
-                            Expression.PostIncrementAssign(i),
-                            initAndSerialize
+                    var initAndSerialize = this.SerializeValue(context.Push(objectDetails.ElementObjectDetails, emptyInstanceVar, "[]")).OperationExpression;
+                    var i = Expression.Variable(typeof(int), "i");
+
+                    var padding = Expression.IfThen(
+                        Expression.LessThan(lengthVar, Expression.Constant(objectDetails.EnumerableLength)),
+                        Expression.Block(new[] { emptyInstanceVar },
+                            emptyInstanceAssignment,
+                            ExpressionHelpers.For(
+                                i,
+                                lengthVar,
+                                Expression.LessThan(i, Expression.Constant(objectDetails.EnumerableLength)),
+                                Expression.PostIncrementAssign(i),
+                                initAndSerialize
+                            )
                         )
-                    )
-                );
-
-                blockMembers.Add(padding);
+                    );
+                    blockMembers.Add(padding);
+                }
+                else
+                {
+                    var exceptionMessage = Expression.Constant(String.Format("Unable to pad array with elements of type {0}, as it does not have a parameterless constructor", objectDetails.ElementType.Description()));
+                    var throwExpr = Expression.Throw(ExpressionHelpers.MakeBitPackerTranslationException(exceptionMessage, context.GetMemberPath()));
+                    blockMembers.Add(Expression.IfThen(Expression.LessThan(lengthVar, Expression.Constant(objectDetails.EnumerableLength)), throwExpr));
+                }
             }
 
             var block = Expression.Block(blockVars, blockMembers);

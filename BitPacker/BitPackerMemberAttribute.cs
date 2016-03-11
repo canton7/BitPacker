@@ -35,7 +35,7 @@ namespace BitPacker
         { }
     }
 
-    [AttributeUsage(AttributeTargets.Property, Inherited = false, AllowMultiple = false)]
+    [AttributeUsage(AttributeTargets.Property, Inherited = false, AllowMultiple = true)]
     public class BitPackerArrayAttribute : BitPackerMemberAttribute
     {
         public string LengthKey { get; set; }
