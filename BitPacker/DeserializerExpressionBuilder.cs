@@ -230,7 +230,7 @@ namespace BitPacker
 
                 // If it has both fixed and variable-length attributes, then there's padding at the end of it
                 if (hasFixedLength)
-                    arrayPaddingLength = Expression.Subtract(Expression.Constant(objectDetails.EnumerableLength), arrayLength);
+                    arrayPaddingLength = Expression.Subtract(Expression.Constant(objectDetails.EnumerableLength), Expression.Convert(arrayLength, typeof(int)));
             }
             else if (hasFixedLength)
             {

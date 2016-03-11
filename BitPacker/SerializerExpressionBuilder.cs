@@ -239,7 +239,7 @@ namespace BitPacker
 
             // If it's fixed length, is the wrong length, and doesn't allow null-terminating, then we have to throw
             Expression lengthAssertion = Expression.Empty();
-            if (objectDetails.EnumerableLength > 0 && !ObjectDetails.NullTerminatedEncodings.Contains(objectDetails.Encoding))
+            if (objectDetails.LengthKey == null && objectDetails.EnumerableLength > 0 && !ObjectDetails.NullTerminatedEncodings.Contains(objectDetails.Encoding))
             {
                 var exceptionMessage = ExpressionHelpers.StringFormat(String.Format("You specified an explicit length of {0} bytes for a string, but the actual string contains {{0}} bytes and its encoding ({1}) can't be NULL-padded.", objectDetails.EnumerableLength, objectDetails.Encoding.EncodingName), byteCountVar);
                 var throwExpr = Expression.Throw(ExpressionHelpers.MakeBitPackerTranslationException(exceptionMessage, context.GetMemberPath()));

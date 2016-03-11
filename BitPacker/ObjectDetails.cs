@@ -278,7 +278,7 @@ namespace BitPacker
             }
             else if (this.IsEnumerable && !this.IsString)
             {
-                throw new InvalidAttributeException("Arrays or IEnumerable<T> properties must be decorated with BitPackerArray, not BitPackerMember", this.debugName);
+                throw new InvalidAttributeException("Arrays or IEnumerable<T> properties must be decorated with BitPackerArray", this.debugName);
             }
 
             // Check has to happen before BitPackerIntegerAttribute

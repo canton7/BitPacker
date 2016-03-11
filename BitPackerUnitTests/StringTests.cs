@@ -19,9 +19,16 @@ namespace BitPackerUnitTests
         }
 
         [BitPackerObject]
-        private class HasNoLengthAndNoLengthKey
+        private class HasNoLengthAndNoLengthKeyAsciiString
         {
             [BitPackerString(Encoding = "ASCII")]
+            public string String { get; set; }
+        }
+
+        [BitPackerObject]
+        private class HasNoLengthAndNoLengthKeyUtf16String
+        {
+            [BitPackerString(Encoding = "UTF-16")]
             public string String { get; set; }
         }
 
@@ -56,6 +63,30 @@ namespace BitPackerUnitTests
             public string String { get; set; }
         }
 
+        [BitPackerObject]
+        private class HasPaddedVariableLengthUtf16String
+        {
+            [BitPackerLengthKey(LengthKey = "length")]
+            public long Length { get; set; }
+
+            [BitPackerString(Encoding = "UTF-16", Length = 10, LengthKey = "length")]
+            public string String { get; set; }
+        }
+
+        [BitPackerObject]
+        private class HasStringAttributeOnNonString
+        {
+            [BitPackerString]
+            public int NotAString { get; set; }
+        }
+
+        [BitPackerObject]
+        private class HasStringPropertyWithNonStringAttribute
+        {
+            [BitPackerMember]
+            public string String { get; set; }
+        }
+
         [Fact]
         public void SerializesNullTerminatedString()
         {
@@ -81,17 +112,33 @@ namespace BitPackerUnitTests
         }
 
         [Fact]
-        public void SerializesStringWithNoLengthAndNoLengthField()
+        public void SerializesAsciiStringWithNoLengthAndNoLengthField()
         {
-            var serializer = new BitPackerSerializer<HasNoLengthAndNoLengthKey>();
-            var bytes = serializer.Serialize(new HasNoLengthAndNoLengthKey() { String = "foo" });
+            var serializer = new BitPackerSerializer<HasNoLengthAndNoLengthKeyAsciiString>();
+            var bytes = serializer.Serialize(new HasNoLengthAndNoLengthKeyAsciiString() { String = "foo" });
             Assert.Equal(new byte[] { 102, 111, 111 }, bytes);
         }
 
         [Fact]
-        public void ThrowsIfDeserializingStringWithNoLengthandNoLengthField()
+        public void ThrowsIfDeserializingAsciiStringWithNoLengthandNoLengthField()
         {
-            var e = Assert.Throws<BitPackerTranslationException>(() => new BitPackerDeserializer<HasNoLengthAndNoLengthKey>());
+            var e = Assert.Throws<BitPackerTranslationException>(() => new BitPackerDeserializer<HasNoLengthAndNoLengthKeyAsciiString>());
+            Assert.Equal(new[] { "String" }, e.MemberPath.ToArray());
+            Assert.IsType<InvalidStringSetupException>(e.InnerException);
+        }
+
+        [Fact]
+        public void SerializesUtf16StringWithNoLengthAndNoLengthField()
+        {
+            var serializer = new BitPackerSerializer<HasNoLengthAndNoLengthKeyUtf16String>();
+            var bytes = serializer.Serialize(new HasNoLengthAndNoLengthKeyUtf16String() { String = "foo" });
+            Assert.Equal(new byte[] { 102, 0, 111, 0, 111, 0 }, bytes);
+        }
+
+        [Fact]
+        public void ThrowsIfDeserializingUtf16StringWithNoLengthandNoLengthField()
+        {
+            var e = Assert.Throws<BitPackerTranslationException>(() => new BitPackerDeserializer<HasNoLengthAndNoLengthKeyUtf16String>());
             Assert.Equal(new[] { "String" }, e.MemberPath.ToArray());
             Assert.IsType<InvalidStringSetupException>(e.InnerException);
         }
@@ -166,6 +213,46 @@ namespace BitPackerUnitTests
         {
             var serializer = new BitPackerSerializer<HasFixedLengthUtf16String>();
             Assert.Throws<BitPackerTranslationException>(() => serializer.Serialize(new HasFixedLengthUtf16String() { String = "ab" }));
+        }
+
+        [Fact]
+        public void SerializesPaddedFixedLengthStringsCorrectly()
+        {
+            var serializer = new BitPackerSerializer<HasPaddedVariableLengthUtf16String>();
+            var bytes = serializer.Serialize(new HasPaddedVariableLengthUtf16String() { String = "ab£" });
+            var expected = new byte[]
+            {
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x06, // Length
+                0x61, 0x00, 0x62, 0x00, 0xa3, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+            };
+            Assert.Equal(expected, bytes);
+        }
+
+        [Fact]
+        public void DeserializesPaddedFixedLengthStringsCorrectly()
+        {
+            var deserializer = new BitPackerDeserializer<HasPaddedVariableLengthUtf16String>();
+            var bytes = new byte[]
+            {
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x06, // Length
+                0x61, 0x00, 0x62, 0x00, 0xa3, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+            };
+            var cls = deserializer.Deserialize(bytes);
+            Assert.Equal("ab£", cls.String);
+        }
+
+        [Fact]
+        public void ThrowsIfStringAttributeAppliedToNonString()
+        {
+            Assert.Throws<InvalidAttributeException>(() => new BitPackerSerializer<HasStringAttributeOnNonString>());
+        }
+
+        [Fact]
+        public void ThrowsIfStringPropertyDoesNotHaveStringAttribute()
+        {
+            Assert.Throws<InvalidAttributeException>(() => new BitPackerSerializer<HasStringPropertyWithNonStringAttribute>());
         }
     }
 }
