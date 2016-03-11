@@ -41,12 +41,6 @@ namespace BitPacker
         public string LengthKey { get; set; }
         public int Length { get; set; }
 
-        public Endianness Endianness
-        {
-            get { return this.NullableEndianness.GetValueOrDefault(Endianness.LittleEndian); }
-            set { this.NullableEndianness = value; }
-        }
-
         public BitPackerArrayAttribute([CallerLineNumber] int order = 0)
             : base(order)
         { }

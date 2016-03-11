@@ -72,13 +72,21 @@ namespace BitPackerUnitTests
         }
 
         [BitPackerObject]
+        private class HasArrayOfIntsWithExplicitEndianness
+        {
+            [BitPackerArray(Length = 3)]
+            [BitPackerInteger(Endianness = Endianness.BigEndian)]
+            public int[] Array { get; set; }
+        }
+
+        [BitPackerObject]
         private class HasVariableLengthTypeAndLengthField
         {
             [BitPackerLengthKey(LengthKey = "key")]
             public uint Length { get; set; }
 
             [BitPackerArray(LengthKey = "key")]
-            [BitPackerArray(Length = 2)]
+            [BitPackerArray(LengthKey = "key")]
             [BitPackerString(NullTerminated = true, Encoding = "ASCII")]
             public string[][] Array { get; set; }
         }
@@ -263,6 +271,20 @@ namespace BitPackerUnitTests
         public void DeserializationOfObjectWithTwoLengthFieldsForOneArrayFails()
         {
             Assert.Throws<InvalidArraySetupException>(() => new BitPackerDeserializer<HasTwoLengthFieldsForOneArray>());
+        }
+
+        [Fact]
+        public void ArrayAllowsSecondAttributeSpecifyingIntegerEndianness()
+        {
+            var serializer = new BitPackerSerializer<HasArrayOfIntsWithExplicitEndianness>();
+            var bytes = serializer.Serialize(new HasArrayOfIntsWithExplicitEndianness() { Array = new[] { 1, 2 } });
+            var expected = new byte[]
+            {
+                0x00, 0x00, 0x00, 0x01,
+                0x00, 0x00, 0x00, 0x02,
+                0x00, 0x00, 0x00, 0x00
+            };
+            Assert.Equal(expected, bytes);
         }
 
         [Fact]
