@@ -76,11 +76,6 @@ namespace BitPacker
             get { return empty; }
         }
 
-        public static ImmutableStack<T> Init(T initialValue)
-        {
-            return Empty.Push(initialValue);
-        }
-
         public IEnumerator<T> GetEnumerator()
         {
             for (ImmutableStack<T> stack = this; !stack.IsEmpty ; stack = stack.Pop())
@@ -90,6 +85,24 @@ namespace BitPacker
         IEnumerator IEnumerable.GetEnumerator()
         {
             return this.GetEnumerator();
+        }
+    }
+
+    internal static class ImmutableStack
+    {
+        public static ImmutableStack<T> Init<T>(T initialValue)
+        {
+            return ImmutableStack<T>.Empty.Push(initialValue);
+        }
+
+        public static ImmutableStack<T> From<T>(IEnumerable<T> initialValues)
+        {
+            var stack = ImmutableStack<T>.Empty;
+            foreach (var initialValue in initialValues)
+            {
+                stack = stack.Push(initialValue);
+            }
+            return stack;
         }
     }
 }

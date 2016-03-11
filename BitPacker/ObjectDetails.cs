@@ -19,7 +19,7 @@ namespace BitPacker
         protected IReadOnlyDictionary<string, PropertyObjectDetails> lengthFields;
         protected IReadOnlyDictionary<string, PropertyObjectDetails> variableLengthArrays;
         protected readonly BitPackerObjectAttribute objectAttribute;
-        protected readonly BitPackerMemberAttribute propertyAttribute;
+        protected readonly ImmutableStack<BitPackerMemberAttribute> propertyAttributes;
         protected readonly string lengthKey;
         protected readonly int length;
         protected readonly Encoding encoding;
@@ -149,12 +149,12 @@ namespace BitPacker
 
         public bool Serialize
         {
-            get { return this.propertyAttribute.SerializeInternal; }
+            get { return this.propertyAttributes.Peek().SerializeInternal; }
         }
 
         public int Order
         {
-            get { return this.propertyAttribute.Order; }
+            get { return this.propertyAttributes.Peek().Order; }
         }
 
         public Type CustomSerializer
@@ -204,7 +204,7 @@ namespace BitPacker
 
         public bool IsLengthField
         {
-            get { return this.propertyAttribute is BitPackerLengthKeyAttribute; }
+            get { return this.propertyAttributes.Peek() is BitPackerLengthKeyAttribute; }
         }
 
         public IPrimitiveTypeInfo PrimitiveTypeInfo
@@ -217,20 +217,22 @@ namespace BitPacker
             }
         }
 
-        public ObjectDetails(Type type, BitPackerMemberAttribute propertyAttribute, Endianness? endianness = null, bool isAttributeCascaded = false)
-            : this(type, type.Description(), propertyAttribute, endianness, isAttributeCascaded)
+        public ObjectDetails(Type type, ImmutableStack<BitPackerMemberAttribute> propertyAttributes, Endianness? endianness = null, bool isAttributeCascaded = false)
+            : this(type, type.Description(), propertyAttributes, endianness, isAttributeCascaded)
         { }
 
-        public ObjectDetails(Type type, string debugName, BitPackerMemberAttribute propertyAttribute, Endianness? endianness = null, bool isAttributeCascaded = false)
+        public ObjectDetails(Type type, string debugName, ImmutableStack<BitPackerMemberAttribute> propertyAttributes, Endianness? endianness = null, bool isAttributeCascaded = false)
         {
             this.type = type;
             this.debugName = debugName;
             this.objectAttribute = this.type.GetCustomAttribute<BitPackerObjectAttribute>();
             this.endianness = endianness;
-            this.propertyAttribute = propertyAttribute;
+            this.propertyAttributes = propertyAttributes;
             this.isPrimitiveType = PrimitiveTypes.IsPrimitive(this.type);
             if (this.isPrimitiveType)
                 this.primitiveTypeInfo = PrimitiveTypes.Types[this.type];
+
+            var propertyAttribute = propertyAttributes.Peek();
 
             if (this.endianness == null && this.objectAttribute != null)
                 this.endianness = this.objectAttribute.Endianness;
@@ -252,7 +254,7 @@ namespace BitPacker
                 if (!this.IsString)
                     throw new InvalidAttributeException("BitPackerString can only be applied to properties which are strings", this.debugName);
 
-                this.elementObjectDetails = new EnumerableElementObjectDetails(this.ElementType, propertyAttribute);
+                this.elementObjectDetails = new EnumerableElementObjectDetails(this.ElementType, propertyAttributes);
                 this.length = stringAttribute.Length;
                 this.lengthKey = stringAttribute.LengthKey;
                 this.encoding = Encoding.GetEncoding(stringAttribute.Encoding);
@@ -272,7 +274,7 @@ namespace BitPacker
                 if (!this.IsEnumerable && !this.IsString)
                     throw new InvalidAttributeException("BitPackerArray can only be applied to properties which are arrays or IEnumerable<T>", this.debugName);
 
-                this.elementObjectDetails = new EnumerableElementObjectDetails(this.ElementType, propertyAttribute, this.Endianness);
+                this.elementObjectDetails = new EnumerableElementObjectDetails(this.ElementType, propertyAttributes, this.Endianness);
                 this.length = arrayAttribute.Length;
                 this.lengthKey = arrayAttribute.LengthKey;
             }
@@ -298,7 +300,7 @@ namespace BitPacker
             if (this.IsBoolean)
             {
                 this.equivalentType = this.equivalentType ?? typeof(int);
-                this.booleanEquivalentObjectDetails = new ObjectDetails(this.equivalentType, propertyAttribute, this.Endianness, true);
+                this.booleanEquivalentObjectDetails = new ObjectDetails(this.equivalentType, propertyAttributes, this.Endianness, true);
             }
 
             // Check has to happen before BitPackerIntegerAttribute
@@ -314,7 +316,7 @@ namespace BitPacker
             if (this.IsEnum)
             {
                 var enumType = this.equivalentType ?? Enum.GetUnderlyingType(this.Type);
-                this.enumEquivalentObjectDetails = new ObjectDetails(enumType, propertyAttribute, this.Endianness, true);
+                this.enumEquivalentObjectDetails = new ObjectDetails(enumType, propertyAttributes, this.Endianness, true);
                 this.CheckEnum(enumType);
             }
 
@@ -375,12 +377,14 @@ namespace BitPacker
             if (this.objectAttribute != null)
             {
                 var allProperties = (from property in this.type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-                                  let propertyAttribute = property.GetCustomAttribute<BitPackerMemberAttribute>(false)
-                                  where propertyAttribute != null
-                                  orderby propertyAttribute.Order
-                                  select new PropertyObjectDetails(this.type, property, propertyAttribute, this.Endianness)).ToList();
+                                     let attributes = property.GetCustomAttributes<BitPackerMemberAttribute>(false).OrderBy(x => x.Order)
+                                     let firstAttribute = attributes.FirstOrDefault()
+                                     where firstAttribute != null
+                                     let attributesStack = ImmutableStack.From(attributes) // Put the one with the lowest order at the top of the stack
+                                     orderby firstAttribute.Order
+                                     select new PropertyObjectDetails(this.type, property, attributesStack, this.Endianness)).ToList();
 
-                var properties = allProperties.Where(x => x.propertyAttribute.SerializeInternal).ToList();
+                var properties = allProperties.Where(x => x.propertyAttributes.Peek().SerializeInternal).ToList();
                 foreach (var property in properties)
                 {
                     property.Discover();
@@ -431,8 +435,8 @@ namespace BitPacker
     {
         public PropertyInfo PropertyInfo { get; private set; }
 
-        public PropertyObjectDetails(Type parentType, PropertyInfo propertyInfo, BitPackerMemberAttribute propertyAttribute, Endianness? endianness = null)
-            : base(propertyInfo.PropertyType, String.Format("{0}.{1}", parentType.Description(), propertyInfo.Name), propertyAttribute, endianness)
+        public PropertyObjectDetails(Type parentType, PropertyInfo propertyInfo, ImmutableStack<BitPackerMemberAttribute> propertyAttributes, Endianness? endianness = null)
+            : base(propertyInfo.PropertyType, String.Format("{0}.{1}", parentType.Description(), propertyInfo.Name), propertyAttributes, endianness)
         {
             this.PropertyInfo = propertyInfo;
         }
@@ -445,8 +449,8 @@ namespace BitPacker
 
     internal class EnumerableElementObjectDetails : ObjectDetails
     {
-        public EnumerableElementObjectDetails(Type type, BitPackerMemberAttribute propertyAttribute, Endianness? endianness = null)
-            : base(type, propertyAttribute, endianness, true)
+        public EnumerableElementObjectDetails(Type type, ImmutableStack<BitPackerMemberAttribute> propertyAttributes, Endianness? endianness = null)
+            : base(type, propertyAttributes, endianness, true)
         { }
 
         public Expression AssignExpression(ParameterExpression parent, Expression index, Expression value)

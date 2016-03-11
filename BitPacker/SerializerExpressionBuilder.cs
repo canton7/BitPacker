@@ -30,7 +30,7 @@ namespace BitPacker
 
         public TypeDetails BuildExpression(Expression subject)
         {
-            var objectDetails = new ObjectDetails(this.objectType, new BitPackerMemberAttribute(0) { NullableEndianness = this.defaultEndianness });
+            var objectDetails = new ObjectDetails(this.objectType, ImmutableStack.Init(new BitPackerMemberAttribute(0) { NullableEndianness = this.defaultEndianness }));
             objectDetails.Discover();
 
             var context = new TranslationContext(objectDetails, subject);

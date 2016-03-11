@@ -37,7 +37,7 @@ namespace BitPacker
         {
             var subject = Expression.Parameter(this.objectType, "rootSubject");
 
-            var objectDetails = new ObjectDetails(this.objectType, new BitPackerMemberAttribute(0) { NullableEndianness = this.defaultEndianness });
+            var objectDetails = new ObjectDetails(this.objectType, ImmutableStack.Init(new BitPackerMemberAttribute(0) { NullableEndianness = this.defaultEndianness }));
             objectDetails.Discover();
 
             // First, we need to make sure it's fully constructed
