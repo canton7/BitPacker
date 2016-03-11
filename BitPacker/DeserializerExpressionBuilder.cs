@@ -251,7 +251,7 @@ namespace BitPacker
             bool hasFixedLength = objectDetails.EnumerableLength > 0;
             BlockExpression block;
 
-            // Riiight... So. It's either got a length, or it's an ASCII null-terminated string
+            // Riiight... So. It's either got a length, or it's a null-terminated string
             // The length option is easy...
             if (hasFixedLength || objectDetails.LengthKey != null)
             {
@@ -266,8 +266,8 @@ namespace BitPacker
 
                 var stringRead = Expression.Call(encoding, getStringMethod, bytesArrayVar);
 
-                // If it's ASCII, trim the NULLs
-                if (objectDetails.Encoding == Encoding.ASCII)
+                // If it's null-terminated, trim the NULLs
+                if (ObjectDetails.NullTerminatedEncodings.Contains(objectDetails.Encoding))
                     blockMembers.Add(Expression.Call(stringRead, TrimEndMethod, Expression.NewArrayInit(typeof(char), Expression.Constant('\0'))));
                 else
                     blockMembers.Add(stringRead);

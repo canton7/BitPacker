@@ -42,6 +42,20 @@ namespace BitPackerUnitTests
             public string String { get; set; }
         }
 
+        [BitPackerObject]
+        private class HasFixedLengthUtf8String
+        {
+            [BitPackerString(Encoding = "UTF-8", Length = 5)]
+            public string String { get; set; }
+        }
+
+        [BitPackerObject]
+        private class HasFixedLengthUtf16String
+        {
+            [BitPackerString(Encoding = "UTF-16", Length = 6)]
+            public string String { get; set; }
+        }
+
         [Fact]
         public void SerializesNullTerminatedString()
         {
@@ -119,6 +133,39 @@ namespace BitPackerUnitTests
             var cls = deserializer.Deserialize(bytes);
 
             Assert.Equal("foo", cls.String);
+        }
+
+        [Fact]
+        public void FixedLengthStringsPadCorrectly()
+        {
+            var serializer = new BitPackerSerializer<HasFixedLengthUtf8String>();
+            // £ is a 2-byte character in UTF-8
+            var bytes = serializer.Serialize(new HasFixedLengthUtf8String() { String = "f£" });
+            var expected = new byte[]
+            {
+                0x66, 0xc2, 0xa3, 0x00, 0x00, // 5 bytes in total, not 5 chars
+            };
+
+            Assert.Equal(expected, bytes);
+        }
+
+        [Fact]
+        public void DeserializesFixedLengthStringCorrectly()
+        {
+            var deserializer = new BitPackerDeserializer<HasFixedLengthUtf8String>();
+            var bytes = new byte[]
+            {
+                0x66, 0xc2, 0xa3, 0x00, 0x00,
+            };
+            var cls = deserializer.Deserialize(bytes);
+            Assert.Equal("f£", cls.String);
+        }
+
+        [Fact]
+        public void ThrowsIfSerializingFixedLengthUtf16StringOfWrongSize()
+        {
+            var serializer = new BitPackerSerializer<HasFixedLengthUtf16String>();
+            Assert.Throws<BitPackerTranslationException>(() => serializer.Serialize(new HasFixedLengthUtf16String() { String = "ab" }));
         }
     }
 }

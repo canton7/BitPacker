@@ -86,9 +86,12 @@ namespace BitPacker
 
         public static Expression LengthOfEnumerable(Expression collection, ObjectDetails objectDetails)
         {
-            if (objectDetails.Type.IsArray)
+            // This is slightly hacky. If we're called from SerializeEnumerable, from SerializeString, the ObjectDetails
+            // refers to a single byte, not to a byte array. Therefore don't use the ObjectDetails when finding
+            // the length of arrays.
+            if (collection.Type.IsArray)
                 return Expression.ArrayLength(collection);
-            if (objectDetails.IsString)
+            if (collection.Type == typeof(string))
                 return ByteCountOfString(collection, objectDetails);
             return Expression.Call(typeof(Enumerable), "Count", new[] { objectDetails.ElementType }, collection);
         }

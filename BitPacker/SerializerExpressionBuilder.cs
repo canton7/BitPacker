@@ -223,21 +223,35 @@ namespace BitPacker
 
         private TypeDetails SerializeString(TranslationContext context)
         {
-            var encoding = Expression.Constant(context.ObjectDetails.Encoding);
+            var objectDetails = context.ObjectDetails;
+            var encoding = Expression.Constant(objectDetails.Encoding);
             var str = context.Subject;
 
             var blockMembers = new List<Expression>();
 
             var byteArrayVar = Expression.Variable(typeof(byte[]), "bytes");
-            var arrayInit = Expression.NewArrayBounds(typeof(byte), ExpressionHelpers.ByteCountOfString(str, context.ObjectDetails));
+            var byteCountVar = Expression.Variable(typeof(int), "byteCount");
+            var byteCountAssign = Expression.Assign(byteCountVar, ExpressionHelpers.ByteCountOfString(str, objectDetails));
+            var arrayInit = Expression.NewArrayBounds(typeof(byte), byteCountVar);
             var arrayAssign = Expression.Assign(byteArrayVar, arrayInit);
             var strLength = Expression.Property(str, "Length");
             var getBytesCall = Expression.Call(encoding, getBytesMethod, str, Expression.Constant(0), strLength, byteArrayVar, Expression.Constant(0));
 
-            var typeDetails = this.SerializeEnumerable(context.Push(context.ObjectDetails, byteArrayVar, "[]"));
+            // If it's fixed length, is the wrong length, and doesn't allow null-terminating, then we have to throw
+            Expression lengthAssertion = Expression.Empty();
+            if (objectDetails.EnumerableLength > 0 && !ObjectDetails.NullTerminatedEncodings.Contains(objectDetails.Encoding))
+            {
+                var exceptionMessage = ExpressionHelpers.StringFormat(String.Format("You specified an explicit length of {0} bytes for a string, but the actual string contains {{0}} bytes and its encoding ({1}) can't be NULL-padded.", objectDetails.EnumerableLength, objectDetails.Encoding.EncodingName), byteCountVar);
+                var throwExpr = Expression.Throw(ExpressionHelpers.MakeBitPackerTranslationException(exceptionMessage, context.GetMemberPath()));
+                lengthAssertion = Expression.IfThen(Expression.NotEqual(Expression.Constant(objectDetails.EnumerableLength), byteCountVar), throwExpr);
+            }
 
-            var block = Expression.Block(new[] { byteArrayVar },
+            var typeDetails = this.SerializeEnumerable(context.Push(objectDetails, byteArrayVar, "[]"));
+
+            var block = Expression.Block(new[] { byteCountVar, byteArrayVar },
+                byteCountAssign,
                 arrayAssign,
+                lengthAssertion,
                 getBytesCall,
                 typeDetails.OperationExpression
             );
