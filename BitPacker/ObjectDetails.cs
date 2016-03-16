@@ -278,12 +278,14 @@ namespace BitPacker
                 this.elementObjectDetails = new EnumerableElementObjectDetails(this.ElementType, this, propertyAttributes.PopOrEmpty(), this.Endianness);
                 this.length = arrayAttribute.Length;
                 this.lengthKey = arrayAttribute.LengthKey;
+
+                if (parent != null && parent.IsEnumerable && this.lengthKey != null)
+                    throw new InvalidAttributeException("Variable-length arrays cannot appear as array elements themselves", this.debugName);
             }
             else if (this.IsEnumerable && !this.IsString)
             {
                 throw new InvalidAttributeException("Arrays or IEnumerable<T> properties must be decorated with BitPackerArray", this.debugName);
             }
-
             // Check has to happen before BitPackerIntegerAttribute
             var booleanAttribute = propertyAttribute as BitPackerBooleanAttribute;
             if (booleanAttribute != null)
@@ -338,6 +340,9 @@ namespace BitPacker
             var arrayLengthAttribute = propertyAttribute as BitPackerLengthKeyAttribute;
             if (arrayLengthAttribute != null)
             {
+                if (parent != null && parent.IsEnumerable)
+                    throw new InvalidAttributeException("Length keys may not appear as array elements", this.debugName);
+
                 // Type-checking already done by BitPackerIntegerAttribute
                 this.lengthKey = arrayLengthAttribute.LengthKey;
             }
