@@ -128,7 +128,7 @@ namespace BitPacker
 
                 var localContext = context.PushIntermediateObject(objectDetails, subject);
 
-                var typeDetails = objectDetails.Properties.Select(property =>
+                var typeDetails = objectDetails.Properties.Where(x => x.Serialize).Select(property =>
                 {
                     var newContext = localContext.Push(property, property.AccessExpression(subject), property.PropertyInfo.Name);
 

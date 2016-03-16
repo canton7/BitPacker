@@ -79,6 +79,23 @@ namespace BitPackerUnitTests
             public int[] Array { get; set; }
         }
 
+        [BitPackerObject]
+        private class HasDerivedLength
+        {
+            [BitPackerLengthKey(LengthKey = "key", Serialize = false)]
+            public int ArrayLength { get; set; }
+
+            [BitPackerInteger]
+            public int Length
+            {
+                get { return this.ArrayLength + 2; }
+                set { this.ArrayLength = value - 2; }
+            }
+
+            [BitPackerArray(LengthKey = "key")]
+            public int[] Array { get; set; }
+        }
+
         [Fact]
         public void ThrowsIfArrayNotDecoratedWithPitPackerArrayAttribute()
         {
@@ -273,6 +290,35 @@ namespace BitPackerUnitTests
                 0x00, 0x00, 0x00, 0x00
             };
             Assert.Equal(expected, bytes);
+        }
+
+        [Fact]
+        public void SerializesArrayWithDerivedLength()
+        {
+            var serializer = new BitPackerSerializer<HasDerivedLength>();
+            var bytes = serializer.Serialize(new HasDerivedLength() { Array = new[] { 1, 2, } });
+            var expected = new byte[]
+            {
+                0x00, 0x00, 0x00, 0x04,
+                0x00, 0x00, 0x00, 0x01,
+                0x00, 0x00, 0x00, 0x02,
+            };
+            Assert.Equal(expected, bytes);
+        }
+
+        [Fact]
+        public void DeserializesArrayWithDerivedLength()
+        {
+            var deserializer = new BitPackerDeserializer<HasDerivedLength>();
+            var bytes = new byte[]
+            {
+                0x00, 0x00, 0x00, 0x04,
+                0x00, 0x00, 0x00, 0x01,
+                0x00, 0x00, 0x00, 0x02,
+            };
+            var cls = deserializer.Deserialize(bytes);
+            Assert.Equal(4, cls.Length);
+            Assert.Equal(new[] { 1, 2, }, cls.Array);
         }
     }
 }

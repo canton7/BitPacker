@@ -60,6 +60,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ArrayTests.cs" />
+    <Compile Include="BitfieldTests.cs" />
     <Compile Include="BooleanTests.cs" />
     <Compile Include="NumberTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

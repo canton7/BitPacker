@@ -240,6 +240,8 @@ namespace BitPacker
             this.isLengthField = propertyAttribute is BitPackerLengthKeyAttribute;
             if (this.endianness == null && this.objectAttribute != null)
                 this.endianness = this.objectAttribute.Endianness;
+            this.bitWidth = parent?.BitWidth; // Default, overridden if an integer attribute is set
+            this.padContainerAfter = parent?.PadContainerAfter ?? false; // Default, overridden if an integer attribute is set
 
             if (propertyAttribute?.NullableEndianness != null)
                 this.endianness = propertyAttribute.NullableEndianness.Value;
@@ -286,6 +288,7 @@ namespace BitPacker
             {
                 throw new InvalidAttributeException("Arrays or IEnumerable<T> properties must be decorated with BitPackerArray", this.debugName);
             }
+
             // Check has to happen before BitPackerIntegerAttribute
             var booleanAttribute = propertyAttribute as BitPackerBooleanAttribute;
             if (booleanAttribute != null)
@@ -300,14 +303,14 @@ namespace BitPacker
                     this.EnsureTypeIsInteger(booleanAttribute.Type);
                 this.equivalentType = booleanAttribute.Type;
             }
+            // This has to happen before the IntegerAttribute check
             if (this.IsBoolean)
             {
-                this.equivalentType = this.equivalentType ?? typeof(int);
-                this.booleanEquivalentObjectDetails = new ObjectDetails(this.equivalentType, this, propertyAttributes.PopOrEmpty(), this.Endianness);
+                this.equivalentType = this.equivalentType ?? typeof(byte);
             }
 
             // Check has to happen before BitPackerIntegerAttribute
-            var enumAttribute = propertyAttribute as BitPackerEnumAttribute;
+                var enumAttribute = propertyAttribute as BitPackerEnumAttribute;
             if (enumAttribute != null)
             {
                 if (!this.Type.IsEnum)
@@ -335,6 +338,12 @@ namespace BitPacker
                 if (this.bitWidth.HasValue && this.bitWidth.Value <= 0)
                     throw new Exception("Bit Width must be > 0");
                 this.padContainerAfter = integerAttribute.PadContainerAfter;
+            }
+
+            // Has to happen after the IntegerAttribute stuff, as bitWidth and padContainerAfter must be set
+            if (this.IsBoolean)
+            {
+                this.booleanEquivalentObjectDetails = new ObjectDetails(this.equivalentType, this, propertyAttributes.PopOrEmpty(), this.Endianness);
             }
 
             var arrayLengthAttribute = propertyAttribute as BitPackerLengthKeyAttribute;
@@ -390,7 +399,7 @@ namespace BitPacker
                                      orderby firstAttribute.Order
                                      select new PropertyObjectDetails(this.type, this, property, attributesStack, this.Endianness)).ToList();
 
-                var properties = allProperties.Where(x => x.Serialize).ToList();
+                var properties = allProperties.ToList();
                 foreach (var property in properties)
                 {
                     property.Discover();

@@ -87,7 +87,10 @@ namespace BitPacker
                 return this.SerializeValue(newContext);
             }).ToArray();
 
-            var blockMembers = typeDetails.Select(x => x.OperationExpression);
+            var blockMembers = typeDetails.Select(x => x.OperationExpression).ToList();
+
+            // Flush the container after writing an object...
+            blockMembers.Add(Expression.Call(this.writer, flushContainerMethod));
 
             result = Expression.Block(blockMembers.Where(x => x != null).DefaultIfEmpty(Expression.Empty()));
 
@@ -169,36 +172,39 @@ namespace BitPacker
                 blockMembers.Add(assign);
             }
 
-            if (info.IsIntegral && objectDetails.BitWidth.HasValue)
+            if (objectDetails.Serialize)
             {
-                var convertedValue = Expression.Convert(value, typeof(ulong));
-                var containerSize = Expression.Constant(info.Size);
-                var numBits = Expression.Constant(objectDetails.BitWidth.Value);
-                var swapEndianness = Expression.Constant(objectDetails.Endianness != EndianUtilities.HostEndianness);
-                var writeBitfield = Expression.Call(this.writer, writeBitfieldMethod, convertedValue, containerSize, numBits, swapEndianness);
+                if (info.IsIntegral && objectDetails.BitWidth.HasValue)
+                {
+                    var convertedValue = Expression.Convert(value, typeof(ulong));
+                    var containerSize = Expression.Constant(info.Size);
+                    var numBits = Expression.Constant(objectDetails.BitWidth.Value);
+                    var swapEndianness = Expression.Constant(objectDetails.Endianness != EndianUtilities.HostEndianness);
+                    var writeBitfield = Expression.Call(this.writer, writeBitfieldMethod, convertedValue, containerSize, numBits, swapEndianness);
 
-                Expression writeExpression;
-                if (objectDetails.PadContainerAfter)
-                    writeExpression = Expression.Block(writeBitfield, Expression.Call(this.writer, flushContainerMethod));
+                    Expression writeExpression;
+                    if (objectDetails.PadContainerAfter)
+                        writeExpression = Expression.Block(writeBitfield, Expression.Call(this.writer, flushContainerMethod));
+                    else
+                        writeExpression = writeBitfield;
+                    blockMembers.Add(writeExpression);
+                }
+                // Even through EndiannessUtilities has now Swap(byte) overload, we get an AmbiguousMatchException
+                // when we try and find such a method (maybe the byte is being coerced into an int or something?).
+                // Therefore, handle this...
+                else if (objectDetails.Endianness != EndianUtilities.HostEndianness && info.Size > 1)
+                {
+                    blockMembers.Add(info.SwappedSerializeExpression(this.writer, value));
+                }
                 else
-                    writeExpression = writeBitfield;
-                blockMembers.Add(writeExpression);
-            }
-            // Even through EndiannessUtilities has now Swap(byte) overload, we get an AmbiguousMatchException
-            // when we try and find such a method (maybe the byte is being coerced into an int or something?).
-            // Therefore, handle this...
-            else if (objectDetails.Endianness != EndianUtilities.HostEndianness && info.Size > 1)
-            {
-                blockMembers.Add(info.SwappedSerializeExpression(this.writer, value));
-            }
-            else
-            {
-                blockMembers.Add(info.SerializeExpression(this.writer, value));
+                {
+                    blockMembers.Add(info.SerializeExpression(this.writer, value));
+                }
             }
 
             var wrappedWrite = ExpressionHelpers.TryTranslate(Expression.Block(blockMembers), context.GetMemberPath());
 
-            return new TypeDetails(true, info.Size, wrappedWrite);
+            return new TypeDetails(true, objectDetails.Serialize ? info.Size : 0, wrappedWrite);
         }
 
         private TypeDetails SerializeEnum(TranslationContext context)
