@@ -12,7 +12,8 @@ namespace BitPacker
 {
     internal class SerializerExpressionBuilder
     {
-        private static readonly MethodInfo writeBitfieldMethod = typeof(BitfieldBinaryWriter).GetMethod("WriteBitfield", new[] { typeof(ulong), typeof(int), typeof(int), typeof(bool) });
+        private static readonly MethodInfo writeBitfieldMethod = typeof(BitfieldBinaryWriter).GetMethod("WriteBitfield", new[] { typeof(ulong), typeof(int) });
+        private static readonly MethodInfo beginBitfieldWriteMethod = typeof(BitfieldBinaryWriter).GetMethod("BeginBitfieldWrite", new[] { typeof(int) });
         private static readonly MethodInfo flushContainerMethod = typeof(BitfieldBinaryWriter).GetMethod("FlushContainer", new Type[0]);
         private static readonly MethodInfo getBytesMethod = typeof(Encoding).GetMethod("GetBytes", new[] { typeof(string), typeof(int), typeof(int), typeof(byte[]), typeof(int) });
         private static readonly MethodInfo serializeMethod = typeof(ICustomSerializer).GetMethod("Serialize", new[] { typeof(BinaryWriter), typeof(object), typeof(object) });
@@ -34,7 +35,7 @@ namespace BitPacker
             objectDetails.Discover();
 
             var context = new TranslationContext(objectDetails, subject);
-            return this.SerializeCustomType(context);
+            return this.SerializeValue(context);
         }
 
         private TypeDetails SerializeValue(TranslationContext context)
@@ -56,10 +57,32 @@ namespace BitPacker
             if (objectDetails.IsEnum)
                 return this.SerializeEnum(context);
 
+            if (objectDetails.IsBitField)
+                return this.SerializeBitField(context);
+
             if (objectDetails.IsCustomType)
                 return this.SerializeCustomType(context);
 
             throw new Exception(String.Format("Don't know how to serialize type {0}. Is it missing a [BitPackerObject] attribute?", objectDetails.Type.Name));
+        }
+
+        private TypeDetails SerializeBitField(TranslationContext context)
+        {
+            var objectDetails = context.ObjectDetails;
+
+            if (!objectDetails.IsBitField)
+                return null;
+
+            var blockMembers = new List<Expression>();
+            blockMembers.Add(Expression.Call(this.writer, beginBitfieldWriteMethod, Expression.Constant(objectDetails.BitfieldWidthBytes)));
+
+            var typeDetails = this.SerializeCustomTypeImpl(context);
+            blockMembers.Add(typeDetails.OperationExpression);
+
+            blockMembers.Add(Expression.Call(this.writer, flushContainerMethod));
+
+            var block = Expression.Block(blockMembers);
+            return new TypeDetails(true, objectDetails.BitfieldWidthBytes, block);
         }
 
         private TypeDetails SerializeCustomType(TranslationContext context)
@@ -72,7 +95,14 @@ namespace BitPacker
 
             if (objectDetails.CustomSerializer != null)
                 return this.SerializeUsingSerializer(context);
-            
+
+            return this.SerializeCustomTypeImpl(context);
+        }
+
+        private TypeDetails SerializeCustomTypeImpl(TranslationContext context)
+        {
+            var objectDetails = context.ObjectDetails;
+
             // For the sake of TranslationContext.FindLengthKey, and for symmetry with DeserializationExpressionBuilder
             var localContext = context.PushIntermediateObject(objectDetails, context.Subject);
 
@@ -88,9 +118,6 @@ namespace BitPacker
             }).ToArray();
 
             var blockMembers = typeDetails.Select(x => x.OperationExpression).ToList();
-
-            // Flush the container after writing an object...
-            blockMembers.Add(Expression.Call(this.writer, flushContainerMethod));
 
             result = Expression.Block(blockMembers.Where(x => x != null).DefaultIfEmpty(Expression.Empty()));
 
@@ -174,20 +201,13 @@ namespace BitPacker
 
             if (objectDetails.Serialize)
             {
-                if (info.IsIntegral && objectDetails.BitWidth.HasValue)
+                if (objectDetails.IsChildOfBitField)
                 {
                     var convertedValue = Expression.Convert(value, typeof(ulong));
-                    var containerSize = Expression.Constant(info.Size);
                     var numBits = Expression.Constant(objectDetails.BitWidth.Value);
-                    var swapEndianness = Expression.Constant(objectDetails.Endianness != EndianUtilities.HostEndianness);
-                    var writeBitfield = Expression.Call(this.writer, writeBitfieldMethod, convertedValue, containerSize, numBits, swapEndianness);
+                    var writeBitfield = Expression.Call(this.writer, writeBitfieldMethod, convertedValue, numBits);
 
-                    Expression writeExpression;
-                    if (objectDetails.PadContainerAfter)
-                        writeExpression = Expression.Block(writeBitfield, Expression.Call(this.writer, flushContainerMethod));
-                    else
-                        writeExpression = writeBitfield;
-                    blockMembers.Add(writeExpression);
+                    blockMembers.Add(writeBitfield);
                 }
                 // Even through EndiannessUtilities has now Swap(byte) overload, we get an AmbiguousMatchException
                 // when we try and find such a method (maybe the byte is being coerced into an int or something?).

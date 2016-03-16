@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Numerics;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -11,10 +12,9 @@ namespace BitPacker
     {
         private readonly CountingStream stream;
 
-        private ulong container;
-        private int containerSize; // In bytes
-        private int containerBitsInUse;
-        private bool swapContainerEndianness;
+        private int bitfieldSizeBytes;
+        private BigInteger bitfieldContainer;
+        private int bitfieldBitsInUse;
 
         public int BytesWritten { get { return this.stream.BytesWritten; } }
 
@@ -22,39 +22,47 @@ namespace BitPacker
             : base(output, Encoding.ASCII, true)
         {
             this.stream = output;
+            this.bitfieldContainer = new BigInteger(0);
         }
 
         public void FlushContainer()
         {
-            if (this.containerBitsInUse > 0)
+            if (this.bitfieldSizeBytes == 0)
+                return;
+
+            var array = this.bitfieldContainer.ToByteArray();
+
+            // Pad...
+            if (array.Length < this.bitfieldSizeBytes)
             {
-                if (this.swapContainerEndianness)
+                for (var i = 0; i < (this.bitfieldSizeBytes - array.Length); i++)
                 {
-                    for (int i = containerSize - 1; i >= 0; i--)
-                    {
-                        base.Write((byte)(this.container >> (i * 8)));
-                    }
-                }
-                else
-                {
-                    for (int i = 0; i < this.containerSize; i++)
-                    {
-                        base.Write((byte)(this.container >> (i * 8)));
-                    }
+                    base.Write((byte)0);
                 }
             }
 
-            this.container = 0;
-            this.containerBitsInUse = 0;
-            this.containerSize = 0;
+            base.Write(array);
+
+            this.bitfieldContainer = new BigInteger(0);
+            this.bitfieldSizeBytes = 0;
+            this.bitfieldBitsInUse = 0;
         }
 
-        public void WriteBitfield(ulong value, int containerSize, int numBits, bool swapContainerEndianness)
+        public void BeginBitfieldWrite(int bitfieldSizeBytes)
         {
+            this.FlushContainer();
+            this.bitfieldSizeBytes = bitfieldSizeBytes;
+        }
+
+        public void WriteBitfield(ulong value, int numBits)
+        {
+            if (this.bitfieldSizeBytes == 0)
+                throw new InvalidOperationException("Bitfield write is not currently in progress");
+
             if (numBits <= 0)
                 throw new ArgumentException("numBits must be > 0", "numBits");
 
-            if (numBits > containerSize * 8)
+            if (numBits > this.bitfieldSizeBytes * 8)
                 throw new ArgumentException("Cannot have a number of bits to write which is greater than the container size");
 
             ulong mask = ~0UL << numBits;
@@ -62,144 +70,138 @@ namespace BitPacker
                 throw new ArgumentException("Value contains bits set above those permitted by numBits");
 
             // Can we write it to the same container?
-            if (containerSize != this.containerSize || (this.containerSize * 8 - this.containerBitsInUse) < numBits)
-                this.FlushContainer();
+            if ((this.bitfieldSizeBytes * 8 - this.bitfieldBitsInUse) < numBits)
+                throw new InvalidOperationException("Tried to write too many bits to bitfield");
 
-            // Do we have conflicting endianness, if there's an existing container?
-            if (this.containerSize > 0 && this.swapContainerEndianness != swapContainerEndianness)
-                throw new Exception("Cannot have mixed endianness among different fields in the same bitfield container");
-
-            // Either this is a no-op, or we're setting up the container for its first write
-            this.containerSize = containerSize;
-
-            // Again, either no-op or first-time setup
-            this.swapContainerEndianness = swapContainerEndianness;
-
-            ulong valueToWrite = value << this.containerBitsInUse;
-            this.container |= valueToWrite;
-
-            this.containerBitsInUse += numBits;
+            this.bitfieldContainer = this.bitfieldContainer | (new BigInteger(value) << this.bitfieldBitsInUse);
+            this.bitfieldBitsInUse += numBits;
         }
 
-        #region Overrides to call FlushContainer
+        private void EnsureBitfieldWriteNotInProgress()
+        {
+            if (this.bitfieldSizeBytes > 0)
+                throw new InvalidOperationException("Bitfield write is currently in progress");
+        }
+
+        #region Overrides to call EnsureBitfieldWriteNotInProgress
 
         public override void Flush()
         {
-            this.FlushContainer();
+            this.EnsureBitfieldWriteNotInProgress();
             base.Flush();
         }
 
         protected override void Dispose(bool disposing)
         {
-            this.FlushContainer();
+            this.EnsureBitfieldWriteNotInProgress();
             base.Dispose(disposing);
         }
 
         public override void Write(bool value)
         {
-            this.FlushContainer();
+            this.EnsureBitfieldWriteNotInProgress();
             base.Write(value);
         }
 
         public override void Write(byte value)
         {
-            this.FlushContainer();
+            this.EnsureBitfieldWriteNotInProgress();
             base.Write(value);
         }
 
         public override void Write(char ch)
         {
-            this.FlushContainer();
+            this.EnsureBitfieldWriteNotInProgress();
             base.Write(ch);
         }
 
         public override void Write(sbyte value)
         {
-            this.FlushContainer();
+            this.EnsureBitfieldWriteNotInProgress();
             base.Write(value);
         }
 
         public override void Write(double value)
         {
-            this.FlushContainer();
+            this.EnsureBitfieldWriteNotInProgress();
             base.Write(value);
         }
 
         public override void Write(decimal value)
         {
-            this.FlushContainer();
+            this.EnsureBitfieldWriteNotInProgress();
             base.Write(value);
         }
 
         public override void Write(short value)
         {
-            this.FlushContainer();
+            this.EnsureBitfieldWriteNotInProgress();
             base.Write(value);
         }
 
         public override void Write(ushort value)
         {
-            this.FlushContainer();
+            this.EnsureBitfieldWriteNotInProgress();
             base.Write(value);
         }
 
         public override void Write(int value)
         {
-            this.FlushContainer();
+            this.EnsureBitfieldWriteNotInProgress();
             base.Write(value);
         }
 
         public override void Write(uint value)
         {
-            this.FlushContainer();
+            this.EnsureBitfieldWriteNotInProgress();
             base.Write(value);
         }
 
         public override void Write(long value)
         {
-            this.FlushContainer();
+            this.EnsureBitfieldWriteNotInProgress();
             base.Write(value);
         }
 
         public override void Write(ulong value)
         {
-            this.FlushContainer();
+            this.EnsureBitfieldWriteNotInProgress();
             base.Write(value);
         }
 
         public override void Write(float value)
         {
-            this.FlushContainer();
+            this.EnsureBitfieldWriteNotInProgress();
             base.Write(value);
         }
 
         public override void Write(byte[] buffer)
         {
-            this.FlushContainer();
+            this.EnsureBitfieldWriteNotInProgress();
             base.Write(buffer);
         }
 
         public override void Write(char[] chars)
         {
-            this.FlushContainer();
+            this.EnsureBitfieldWriteNotInProgress();
             base.Write(chars);
         }
 
         public override void Write(byte[] buffer, int index, int count)
         {
-            this.FlushContainer();
+            this.EnsureBitfieldWriteNotInProgress();
             base.Write(buffer, index, count);
         }
 
         public override void Write(char[] chars, int index, int count)
         {
-            this.FlushContainer();
+            this.EnsureBitfieldWriteNotInProgress();
             base.Write(chars, index, count);
         }
 
         public override void Write(string value)
         {
-            this.FlushContainer();
+            this.EnsureBitfieldWriteNotInProgress();
             base.Write(value);
         }
 

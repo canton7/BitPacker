@@ -10,7 +10,7 @@ namespace BitPackerUnitTests
 {
     public class BitfieldTests
     {
-        [BitPackerObject]
+        [BitPackerBitField(WidthBytes = 2)]
         private class HasSimpleBitfield
         {
             [BitPackerInteger(BitWidth = 2)]
@@ -27,7 +27,7 @@ namespace BitPackerUnitTests
             var bytes = serializer.Serialize(new HasSimpleBitfield() { Int = 2, Bool = true });
             var expected = new byte[]
             {
-                0x06
+                0x00, 0x06, // <padding>, 10, 1
             };
             Assert.Equal(expected, bytes);
         }
@@ -38,7 +38,7 @@ namespace BitPackerUnitTests
             var deserializer = new BitPackerDeserializer<HasSimpleBitfield>();
             var bytes = new byte[]
             {
-                0x06,
+                0x00, 0x06,
             };
             var cls = deserializer.Deserialize(bytes);
 

@@ -19,6 +19,7 @@ namespace BitPacker
         protected IReadOnlyDictionary<string, PropertyObjectDetails> lengthFields;
         protected IReadOnlyDictionary<string, PropertyObjectDetails> variableLengthArrays;
         protected readonly BitPackerObjectAttribute objectAttribute;
+        protected readonly BitPackerBitFieldAttribute bitFieldAttribute;
         protected readonly string lengthKey;
         protected readonly int length;
         protected readonly bool serialize;
@@ -32,10 +33,12 @@ namespace BitPacker
         protected readonly Type customDeserializer;
         protected readonly Type equivalentType;
         protected readonly int? bitWidth;
-        protected readonly bool padContainerAfter;
         protected readonly bool isPrimitiveType;
         protected readonly bool isLengthField;
+        protected readonly bool isChildOfBitField;
         protected readonly IPrimitiveTypeInfo primitiveTypeInfo;
+
+        protected int bitfieldWidthBits;
 
         public Type Type
         {
@@ -104,6 +107,26 @@ namespace BitPacker
                 if (!this.IsString)
                     throw new InvalidOperationException("Not a string");
                 return this.nullTerminated;
+            }
+        }
+
+        public bool IsBitField
+        {
+            get { return this.bitFieldAttribute != null; }
+        }
+
+        public bool IsChildOfBitField
+        {
+            get { return this.isChildOfBitField; }
+        }
+
+        public int BitfieldWidthBytes
+        {
+            get
+            {
+                if (!this.IsBitField)
+                    throw new InvalidOperationException("Not a BitField");
+                return this.bitfieldWidthBits;
             }
         }
 
@@ -194,11 +217,6 @@ namespace BitPacker
             get { return this.bitWidth; }
         }
 
-        public bool PadContainerAfter
-        {
-            get { return this.padContainerAfter; }
-        }
-
         public bool IsPrimitiveType
         {
             get { return this.isPrimitiveType; }
@@ -227,7 +245,12 @@ namespace BitPacker
         {
             this.type = type;
             this.debugName = debugName;
+
             this.objectAttribute = this.type.GetCustomAttribute<BitPackerObjectAttribute>();
+            this.bitFieldAttribute = this.type.GetCustomAttribute<BitPackerBitFieldAttribute>();
+            if (this.objectAttribute != null && this.bitFieldAttribute != null)
+                throw new InvalidAttributeException("May not be decorated with bot BitPackerObject and BitPackerBitField", this.debugName);
+
             this.endianness = endianness;
             this.isPrimitiveType = PrimitiveTypes.IsPrimitive(this.type);
             if (this.isPrimitiveType)
@@ -240,8 +263,9 @@ namespace BitPacker
             this.isLengthField = propertyAttribute is BitPackerLengthKeyAttribute;
             if (this.endianness == null && this.objectAttribute != null)
                 this.endianness = this.objectAttribute.Endianness;
-            this.bitWidth = parent?.BitWidth; // Default, overridden if an integer attribute is set
-            this.padContainerAfter = parent?.PadContainerAfter ?? false; // Default, overridden if an integer attribute is set
+
+            this.isChildOfBitField = parent != null && (parent.IsBitField || parent.IsChildOfBitField);
+            this.bitWidth = parent?.BitWidth; // Overridden if necessary...
 
             if (propertyAttribute?.NullableEndianness != null)
                 this.endianness = propertyAttribute.NullableEndianness.Value;
@@ -250,6 +274,15 @@ namespace BitPacker
 
             this.customSerializer = propertyAttribute?.Serializer ?? parent?.CustomSerializer ?? this.objectAttribute?.Serializer;
             this.customDeserializer = propertyAttribute?.Deserializer ?? parent?.CustomDeserializer ?? this.objectAttribute?.Deserializer;
+
+            IPrimitiveTypeInfo primitiveTypeInfo;
+
+            if (this.bitFieldAttribute != null)
+            {
+                if (this.bitFieldAttribute.NullableWidthBytes == null)
+                    throw new InvalidAttributeException("BitPackerBitArray must have the Width attribute set", this.debugName);
+                this.bitfieldWidthBits = this.bitFieldAttribute.NullableWidthBytes.Value;
+            }
 
             var stringAttribute = propertyAttribute as BitPackerStringAttribute;
             if (stringAttribute != null)
@@ -310,7 +343,7 @@ namespace BitPacker
             }
 
             // Check has to happen before BitPackerIntegerAttribute
-                var enumAttribute = propertyAttribute as BitPackerEnumAttribute;
+            var enumAttribute = propertyAttribute as BitPackerEnumAttribute;
             if (enumAttribute != null)
             {
                 if (!this.Type.IsEnum)
@@ -330,17 +363,17 @@ namespace BitPacker
             if (integerAttribute != null)
             {
                 var typeToCheck = this.equivalentType ?? this.Type;
-                IPrimitiveTypeInfo primitiveTypeInfo;
                 if (!PrimitiveTypes.Types.TryGetValue(typeToCheck, out primitiveTypeInfo) || !primitiveTypeInfo.IsIntegral)
-                    throw new Exception("Properties decorated with BitPackerInteger or BitPackerLengthKey must be integral");
+                    throw new InvalidAttributeException("Properties decorated with BitPackerInteger or BitPackerLengthKey must be integral", this.debugName);
 
                 this.bitWidth = integerAttribute.NullableBitWidth;
-                if (this.bitWidth.HasValue && this.bitWidth.Value <= 0)
-                    throw new Exception("Bit Width must be > 0");
-                this.padContainerAfter = integerAttribute.PadContainerAfter;
+                if (this.bitWidth != null && !this.IsChildOfBitField)
+                    throw new InvalidAttributeException("You may only set BitWidth on properties of a class decorated with BitPackerBitField", this.debugName);
+                if (this.bitWidth != null && this.bitWidth.Value <= 0)
+                    throw new InvalidAttributeException("Bit Width must be > 0", this.debugName);
             }
 
-            // Has to happen after the IntegerAttribute stuff, as bitWidth and padContainerAfter must be set
+            // Has to happen after the IntegerAttribute stuff, as bitWidth must be set
             if (this.IsBoolean)
             {
                 this.booleanEquivalentObjectDetails = new ObjectDetails(this.equivalentType, this, propertyAttributes.PopOrEmpty(), this.Endianness);
@@ -355,6 +388,10 @@ namespace BitPacker
                 // Type-checking already done by BitPackerIntegerAttribute
                 this.lengthKey = arrayLengthAttribute.LengthKey;
             }
+
+            // Has to be done after we've got the equivalent type
+            if (this.IsChildOfBitField && !(PrimitiveTypes.Types.TryGetValue(this.equivalentType ?? this.type, out primitiveTypeInfo) && primitiveTypeInfo.IsIntegral))
+                throw new InvalidAttributeException("Objects decorated with BitPackerBitField may only container integer fields", this.debugName);
         }
 
         private void CheckEnum(Type enumType)
@@ -389,7 +426,7 @@ namespace BitPacker
 
         public void Discover()
         {
-            if (this.objectAttribute != null)
+            if (this.objectAttribute != null || this.bitFieldAttribute != null)
             {
                 var allProperties = (from property in this.type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
                                      let attributes = property.GetCustomAttributes<BitPackerMemberAttribute>(false).OrderByDescending(x => x.Order)
@@ -403,6 +440,13 @@ namespace BitPacker
                 foreach (var property in properties)
                 {
                     property.Discover();
+                }
+
+                if (this.IsBitField)
+                {
+                    var bitFieldWidthBits = properties.Sum(x => x.BitWidth.Value);
+                    if (bitFieldWidthBits > this.BitfieldWidthBytes * 8)
+                        throw new InvalidAttributeException(String.Format("Object has width {0} bits, but its fields sum to {1} bits", this.BitfieldWidthBytes * 8, bitFieldWidthBits), this.debugName);
                 }
 
                 this.properties = properties.AsReadOnly();

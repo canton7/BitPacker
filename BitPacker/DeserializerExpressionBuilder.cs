@@ -12,7 +12,8 @@ namespace BitPacker
 {
     internal class DeserializerExpressionBuilder
     {
-        private static readonly MethodInfo readBitfieldMethod = typeof(BitfieldBinaryReader).GetMethod("ReadBitfield", new[] { typeof(int), typeof(int), typeof(bool) });
+        private static readonly MethodInfo readBitfieldMethod = typeof(BitfieldBinaryReader).GetMethod("ReadBitfield", new[] { typeof(int) });
+        private static readonly MethodInfo beginBitfieldReadMethod = typeof(BitfieldBinaryReader).GetMethod("BeginBitfieldRead", new[] { typeof(int) });
         private static readonly MethodInfo flushContainerMethod = typeof(BitfieldBinaryReader).GetMethod("FlushContainer", new Type[0]);
         private static readonly MethodInfo getStringMethod = typeof(Encoding).GetMethod("GetString", new[] { typeof(byte[]) });
         private static readonly MethodInfo readBytesMethod = typeof(BitfieldBinaryReader).GetMethod("ReadBytes", new[] { typeof(int) });
@@ -102,10 +103,35 @@ namespace BitPacker
             if (objectDetails.IsEnum)
                 return this.DeserializeEnum(objectDetails);
 
+            if (objectDetails.IsBitField)
+                return this.DeserializeBitField(context);
+
             if (objectDetails.IsCustomType)
                 return this.DeserializeCustomType(context);
 
             throw new Exception(String.Format("Don't know how to deserialize type {0}", objectDetails.Type.Name));
+        }
+
+        public TypeDetails DeserializeBitField(TranslationContext context)
+        {
+            var objectDetails = context.ObjectDetails;
+
+            if (!objectDetails.IsBitField)
+                return null;
+
+            var subjectVar = Expression.Variable(objectDetails.Type, "subject");
+
+            var blockMembers = new List<Expression>();
+            blockMembers.Add(Expression.Call(this.reader, beginBitfieldReadMethod, Expression.Constant(objectDetails.BitfieldWidthBytes)));
+
+            var typeDetails = this.DeserializeCustomTypeImpl(context);
+            blockMembers.Add(Expression.Assign(subjectVar, typeDetails.OperationExpression));
+
+            blockMembers.Add(Expression.Call(this.reader, flushContainerMethod));
+            blockMembers.Add(subjectVar); // Return value
+
+            var block = Expression.Block(new[] { subjectVar }, blockMembers);
+            return new TypeDetails(true, objectDetails.BitfieldWidthBytes, block);
         }
 
         public TypeDetails DeserializeCustomType(TranslationContext context)
@@ -118,36 +144,7 @@ namespace BitPacker
                 if (!objectDetails.IsCustomType)
                     return null;
 
-                var blockMembers = new List<Expression>();
-                var subject = Expression.Variable(objectDetails.Type, objectDetails.Type.Name);
-
-                // TODO Raise a different exception here, to show that it's the constructing that's failed
-                var createAndAssign = Expression.Assign(subject, Expression.New(objectDetails.Type));
-                var wrappedCreateAndAssign = ExpressionHelpers.TryTranslate(createAndAssign, context.GetMemberPath());
-                blockMembers.Add(wrappedCreateAndAssign);
-
-                var localContext = context.PushIntermediateObject(objectDetails, subject);
-
-                var typeDetails = objectDetails.Properties.Where(x => x.Serialize).Select(property =>
-                {
-                    var newContext = localContext.Push(property, property.AccessExpression(subject), property.PropertyInfo.Name);
-
-                    if (!property.PropertyInfo.CanWrite)
-                        throw new BitPackerTranslationException("The property must have a public setter", newContext.GetMemberPath());
-
-                    // Does it have a custom deserializer?
-                    if (property.CustomDeserializer != null)
-                        return this.CreateAndAssignFromDeserializer(property.CustomDeserializer, property.AccessExpression(subject), newContext);
-                    else
-                        return this.DeserializeAndAssignValue(newContext);
-                }).ToArray();
-
-                blockMembers.AddRange(typeDetails.Select(x => x.OperationExpression));
-
-
-                blockMembers.Add(subject); // Last value in block is the return value
-                var result = Expression.Block(new[] { subject }, blockMembers.Where(x => x != null));
-                return new TypeDetails(typeDetails.All(x => x.HasFixedSize), typeDetails.Sum(x => x.MinSize), result);
+                return this.DeserializeCustomTypeImpl(context);
             }
             catch (Exception e)
             {
@@ -155,6 +152,42 @@ namespace BitPacker
                     throw e;
                 throw new BitPackerTranslationException(context.GetMemberPath(), e);
             }
+        }
+
+        public TypeDetails DeserializeCustomTypeImpl(TranslationContext context)
+        {
+            var objectDetails = context.ObjectDetails;
+
+            var blockMembers = new List<Expression>();
+            var subject = Expression.Variable(objectDetails.Type, objectDetails.Type.Name);
+
+            // TODO Raise a different exception here, to show that it's the constructing that's failed
+            var createAndAssign = Expression.Assign(subject, Expression.New(objectDetails.Type));
+            var wrappedCreateAndAssign = ExpressionHelpers.TryTranslate(createAndAssign, context.GetMemberPath());
+            blockMembers.Add(wrappedCreateAndAssign);
+
+            var localContext = context.PushIntermediateObject(objectDetails, subject);
+
+            var typeDetails = objectDetails.Properties.Where(x => x.Serialize).Select(property =>
+            {
+                var newContext = localContext.Push(property, property.AccessExpression(subject), property.PropertyInfo.Name);
+
+                if (!property.PropertyInfo.CanWrite)
+                    throw new BitPackerTranslationException("The property must have a public setter", newContext.GetMemberPath());
+
+                // Does it have a custom deserializer?
+                if (property.CustomDeserializer != null)
+                    return this.CreateAndAssignFromDeserializer(property.CustomDeserializer, property.AccessExpression(subject), newContext);
+                else
+                    return this.DeserializeAndAssignValue(newContext);
+            }).ToArray();
+
+            blockMembers.AddRange(typeDetails.Select(x => x.OperationExpression));
+
+
+            blockMembers.Add(subject); // Last value in block is the return value
+            var result = Expression.Block(new[] { subject }, blockMembers.Where(x => x != null));
+            return new TypeDetails(typeDetails.All(x => x.HasFixedSize), typeDetails.Sum(x => x.MinSize), result);
         }
 
         private TypeDetails DeserializePrimitive(ObjectDetails objectDetails)
@@ -166,26 +199,11 @@ namespace BitPacker
             var info = objectDetails.PrimitiveTypeInfo;
             Expression readExpression;
 
-            if (info.IsIntegral && objectDetails.BitWidth.HasValue)
+            if (objectDetails.IsChildOfBitField)
             {
-                var containerSize = Expression.Constant(info.Size);
                 var numBits = Expression.Constant(objectDetails.BitWidth.Value);
-                var swapEndianness = Expression.Constant(objectDetails.Endianness != EndianUtilities.HostEndianness);
-                var readValue = Expression.Call(this.reader, readBitfieldMethod, containerSize, numBits, swapEndianness);
-                var converted = Expression.Convert(readValue, objectDetails.Type);
-                if (objectDetails.PadContainerAfter)
-                {
-                    var valueVar = Expression.Variable(objectDetails.Type, "value");
-                    readExpression = Expression.Block(new[] { valueVar },
-                        Expression.Assign(valueVar, converted),
-                        Expression.Call(this.reader, flushContainerMethod),
-                        valueVar
-                    );
-                }
-                else
-                {
-                    readExpression = converted;
-                }
+                var readValue = Expression.Call(this.reader, readBitfieldMethod, numBits);
+                readExpression = Expression.Convert(readValue, objectDetails.Type);
             }
             else if (objectDetails.Endianness != EndianUtilities.HostEndianness && info.Size > 1)
             {

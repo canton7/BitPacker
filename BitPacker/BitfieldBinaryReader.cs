@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Numerics;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -11,10 +12,8 @@ namespace BitPacker
     {
         private readonly CountingStream stream;
 
-        private ulong container;
-        private int containerSize; // Bytes
-        private int containerBitsInUse;
-        private bool swapContainerEndianness;
+        private BigInteger bitfieldContainer;
+        private int bitfieldBitsInUse;
 
         public int BytesRead { get { return this.stream.BytesRead; } }
 
@@ -24,172 +23,154 @@ namespace BitPacker
             this.stream = input;
         }
 
-
         public void FlushContainer()
         {
             // Just mark it as empty...
-            this.container = 0;
-            this.containerSize = 0;
-            this.containerBitsInUse = 0;
+            this.bitfieldBitsInUse = 0;
         }
 
-        public ulong ReadBitfield(int containerSize, int numBits, bool swapContainerEndianness)
+        public void BeginBitfieldRead(int bitfieldSizeBytes)
         {
-            if (numBits > containerSize * 8)
-                throw new ArgumentException("Cannot have a number of bits to write which is greater than the container size");
-
-            // Can it read from the same container?
-            if (containerSize != this.containerSize || this.containerBitsInUse < numBits)
-                this.FlushContainer();
-
-            // Do we have conflicting endianness, if there's an existing container?
-            if (this.containerSize > 0 && this.swapContainerEndianness != swapContainerEndianness)
-                throw new Exception("Cannot have mixed endianness among different fields in the same bitfield container");
-
-            // Do we need to read into the container? Do it if so
-            if (this.containerSize == 0)
-            {
-                this.containerSize = containerSize;
-                this.swapContainerEndianness = swapContainerEndianness;
-                this.containerBitsInUse = this.containerSize * 8;
-
-                if (this.swapContainerEndianness)
-                {
-                    for (int i = this.containerSize - 1; i >= 0; i--)
-                    {
-                        this.container |= (ulong)((ulong)base.ReadByte() << (i * 8));
-                    }
-                }
-                else
-                {
-                    for (int i = 0; i < this.containerSize; i++)
-                    {
-                        this.container |= (ulong)((ulong)base.ReadByte() << (i * 8));
-                    }
-                }
-            }
-
-            ulong mask = ~(~0UL << numBits);
-            ulong value = this.container & mask;
-            this.container >>= numBits;
-            this.containerBitsInUse -= numBits;
-
-            return value;
+            var bytes = base.ReadBytes(bitfieldSizeBytes);
+            this.bitfieldContainer = new BigInteger(bytes.Reverse().ToArray());
+            this.bitfieldBitsInUse = bitfieldSizeBytes * 8;
         }
 
-        #region Overrides to call FlushContainer
+        public ulong ReadBitfield(int numBits)
+        {
+            if (this.bitfieldBitsInUse == 0)
+                throw new InvalidOperationException("Bitfield read not currently in progress");
+
+            if (numBits > this.bitfieldBitsInUse)
+                throw new ArgumentException("Cannot read that many bits, as the conatiner doesn't contain that many", "numBits");
+
+            // Read from the bottom up to the top
+            ulong mask = ~(~0UL << numBits);
+            var output = this.bitfieldContainer & new BigInteger(mask);
+            this.bitfieldContainer >>= numBits;
+            this.bitfieldBitsInUse -= numBits;
+            return (ulong)output;
+        }
+
+        private void EnsureBitfieldReadNotInProgress()
+        {
+            if (this.bitfieldBitsInUse > 0)
+                throw new InvalidOperationException("Bitfield read is currently in progress");
+        }
+
+        #region Overrides to call EnsureBitfieldReadNotInProgress
 
         public override int Read()
         {
-            this.FlushContainer();
+            this.EnsureBitfieldReadNotInProgress();
             return base.Read();
         }
 
         public override int Read(byte[] buffer, int index, int count)
         {
-            this.FlushContainer();
+            this.EnsureBitfieldReadNotInProgress();
             return base.Read(buffer, index, count);
         }
 
         public override int Read(char[] buffer, int index, int count)
         {
-            this.FlushContainer();
+            this.EnsureBitfieldReadNotInProgress();
             return base.Read(buffer, index, count);
         }
 
         public override bool ReadBoolean()
         {
-            this.FlushContainer();
+            this.EnsureBitfieldReadNotInProgress();
             return base.ReadBoolean();
         }
 
         public override byte ReadByte()
         {
-            this.FlushContainer();
+            this.EnsureBitfieldReadNotInProgress();
             return base.ReadByte();
         }
 
         public override byte[] ReadBytes(int count)
         {
-            this.FlushContainer();
+            this.EnsureBitfieldReadNotInProgress();
             return base.ReadBytes(count);
         }
 
         public override char ReadChar()
         {
-            this.FlushContainer();
+            this.EnsureBitfieldReadNotInProgress();
             return base.ReadChar();
         }
 
         public override char[] ReadChars(int count)
         {
-            this.FlushContainer();
+            this.EnsureBitfieldReadNotInProgress();
             return base.ReadChars(count);
         }
 
         public override decimal ReadDecimal()
         {
-            this.FlushContainer();
+            this.EnsureBitfieldReadNotInProgress();
             return base.ReadDecimal();
         }
 
         public override double ReadDouble()
         {
-            this.FlushContainer();
+            this.EnsureBitfieldReadNotInProgress();
             return base.ReadDouble();
         }
 
         public override short ReadInt16()
         {
-            this.FlushContainer();
+            this.EnsureBitfieldReadNotInProgress();
             return base.ReadInt16();
         }
 
         public override int ReadInt32()
         {
-            this.FlushContainer();
+            this.EnsureBitfieldReadNotInProgress();
             return base.ReadInt32();
         }
 
         public override long ReadInt64()
         {
-            this.FlushContainer();
+            this.EnsureBitfieldReadNotInProgress();
             return base.ReadInt64();
         }
 
         public override sbyte ReadSByte()
         {
-            this.FlushContainer();
+            this.EnsureBitfieldReadNotInProgress();
             return base.ReadSByte();
         }
 
         public override float ReadSingle()
         {
-            this.FlushContainer();
+            this.EnsureBitfieldReadNotInProgress();
             return base.ReadSingle();
         }
 
         public override string ReadString()
         {
-            this.FlushContainer();
+            this.EnsureBitfieldReadNotInProgress();
             return base.ReadString();
         }
 
         public override ushort ReadUInt16()
         {
-            this.FlushContainer();
+            this.EnsureBitfieldReadNotInProgress();
             return base.ReadUInt16();
         }
 
         public override uint ReadUInt32()
         {
-            this.FlushContainer();
+            this.EnsureBitfieldReadNotInProgress();
             return base.ReadUInt32();
         }
 
         public override ulong ReadUInt64()
         {
-            this.FlushContainer();
+            this.EnsureBitfieldReadNotInProgress();
             return base.ReadUInt64();
         }
 

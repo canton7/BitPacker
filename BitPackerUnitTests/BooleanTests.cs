@@ -16,7 +16,7 @@ namespace BitPackerUnitTests
             [BitPackerMember]
             public bool BooleanField { get; set; }
 
-            [BitPackerBoolean]
+            [BitPackerBoolean(Type = typeof(int))]
             public bool ExplicitBooleanField { get; set; }
 
             [BitPackerBoolean(Type = typeof(byte))]
@@ -96,7 +96,7 @@ namespace BitPackerUnitTests
 
             var expectedResult = new byte[]
             {
-                0x00, 0x00, 0x00, 0x01,
+                0x01,
                 0x00, 0x00, 0x00, 0x01,
                 0x01,
                 0x00, 0x01,
@@ -115,7 +115,7 @@ namespace BitPackerUnitTests
         {
             var bytes = new byte[]
             {
-                0x00, 0x00, 0x00, 0x01,
+                0x01,
                 0xFF, 0xFF, 0xFF, 0xFF,
                 0x05,
                 0x01, 0x00,
