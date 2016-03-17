@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2011/10/nuspec.xsd">
+  <metadata>
+    <id>BitPacker</id>
+    <version>0.0.0</version>
+    <title>BitPacker</title>
+    <authors>Antony Male</authors>
+    <owners>Antony Male</owners>
+    <licenseUrl>http://github.com/canton7/BitPacker/blob/master/LICENSE.txt</licenseUrl>
+    <projectUrl>http://github.com/canton7/BitPacker</projectUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>Binary serializer/deserializer</description>
+    <copyright>Copyright 2016 Antony Male</copyright>
+    <tags>Binary Structure Serialize Deserialize</tags>
+  </metadata>
+
+  <files>
+    <file src="..\BitPacker\bin\Release\BitPacker.dll" target="lib\net45 "/>
+    <file src="..\BitPacker\bin\Release\BitPacker.pdb" target="lib\net45 "/>
+    <file src="..\BitPacker\bin\Release\BitPacker.pdb.srcsrv" target="lib\net45 "/>
+  </files>
+</package>

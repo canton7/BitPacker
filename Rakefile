@@ -5,10 +5,22 @@ COVERAGE_FILE = File.join(COVERAGE_DIR, 'coverage.xml')
 
 ASSEMBLY_INFO = 'BitPacker/Properties/AssemblyInfo.cs'
 
-MSBUILD = %q{C:\Program Files (x86)\MSBuild\12.0\Bin\MSBuild.exe}
+MSBUILD = %q{C:\Program Files (x86)\MSBuild\14.0\Bin\MSBuild.exe}
 SLN = 'BitPacker.sln'
 
+NUSPEC = 'NuGet/BitPacker.nuspec'
+GITLINK_REMOTE = 'https://github.com/canton7/BitPacker'
+
 directory COVERAGE_DIR
+
+desc "Create NuGet package"
+task :package do
+  local_hash = `git rev-parse HEAD`.chomp
+  sh "NuGet/GitLink.exe . -s #{local_hash} -u #{GITLINK_REMOTE} -f BitPacker.sln -ignore BitPackerUnitTests -ignore Sandbox"
+  Dir.chdir(File.dirname(NUSPEC)) do
+    sh "nuget.exe pack #{File.basename(NUSPEC)}"
+  end
+end
 
 desc "Bump version number"
 task :version, [:version] do |t, args|
@@ -21,9 +33,9 @@ task :version, [:version] do |t, args|
   content[/^\[assembly: AssemblyFileVersion\(\"(.+?)\"\)\]/, 1] = version
   File.open(ASSEMBLY_INFO, 'w'){ |f| f.write(content) }
 
-  # content = IO.read(NUSPEC)
-  # content[/<version>(.+?)<\/version>/, 1] = args[:version]
-  # File.open(NUSPEC, 'w'){ |f| f.write(content) }
+  content = IO.read(NUSPEC)
+  content[/<version>(.+?)<\/version>/, 1] = args[:version]
+  File.open(NUSPEC, 'w'){ |f| f.write(content) }
 end
 
 desc "Build the project for release"
